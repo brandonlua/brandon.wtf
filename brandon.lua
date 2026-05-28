@@ -46,6 +46,7 @@ local function addOutlines(parent, borderClr)
 	o2.Parent = parent
 end
 
+-- ESP Gui
 local ESPGui = Instance.new("ScreenGui")
 ESPGui.Name = "ESPGui"
 ESPGui.ResetOnSpawn = false
@@ -56,27 +57,23 @@ ESPGui.Parent = playerGui
 local function createESPForPlayer(target)
 	if target == player then return end
 	if espObjects[target] then return end
-
 	local outerBlack = Instance.new("Frame")
 	outerBlack.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	outerBlack.BackgroundTransparency = 0.7
 	outerBlack.BorderSizePixel = 0
 	outerBlack.ZIndex = 8
 	outerBlack.Parent = ESPGui
-
 	local box = Instance.new("Frame")
 	box.BackgroundTransparency = 1
 	box.BorderSizePixel = 0
 	box.ZIndex = 9
 	box.Parent = ESPGui
-
 	local uiStroke = Instance.new("UIStroke")
 	uiStroke.Color = Color3.fromRGB(0, 0, 0)
 	uiStroke.Thickness = 1
 	uiStroke.Transparency = 0.7
 	uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	uiStroke.Parent = box
-
 	local accentBorder = Instance.new("Frame")
 	accentBorder.BackgroundTransparency = 1
 	accentBorder.BorderSizePixel = 0
@@ -85,14 +82,12 @@ local function createESPForPlayer(target)
 	addOutlines(accentBorder, boxColor)
 	local ch = accentBorder:GetChildren()
 	if ch[2] then ch[2].ImageTransparency = 1 end
-
 	local fill = Instance.new("Frame")
 	fill.BackgroundColor3 = boxColor
 	fill.BackgroundTransparency = 0.75
 	fill.BorderSizePixel = 0
 	fill.ZIndex = 7
 	fill.Parent = ESPGui
-
 	local nameLabel = Instance.new("TextLabel")
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.TextColor3 = nameColor
@@ -103,13 +98,9 @@ local function createESPForPlayer(target)
 	nameLabel.TextYAlignment = Enum.TextYAlignment.Bottom
 	nameLabel.ZIndex = 11
 	nameLabel.Parent = ESPGui
-
 	espObjects[target] = {
-		outerBlack   = outerBlack,
-		box          = box,
-		accentBorder = accentBorder,
-		fill         = fill,
-		nameLabel    = nameLabel,
+		outerBlack = outerBlack, box = box,
+		accentBorder = accentBorder, fill = fill, nameLabel = nameLabel,
 	}
 end
 
@@ -132,7 +123,7 @@ local function updateESPColors()
 	for _, objs in pairs(espObjects) do
 		local borderImgs = objs.accentBorder:GetChildren()
 		for _, img in ipairs(borderImgs) do
-			if img:IsA("ImageLabel") and img.Position == UDim2.new(0, 0, 0, 0) then
+			if img:IsA("ImageLabel") and img.Position == UDim2.new(0,0,0,0) then
 				img.ImageColor3 = boxColor
 			end
 		end
@@ -141,9 +132,7 @@ local function updateESPColors()
 	end
 end
 
-Players.PlayerAdded:Connect(function(p)
-	if espEnabled then createESPForPlayer(p) end
-end)
+Players.PlayerAdded:Connect(function(p) if espEnabled then createESPForPlayer(p) end end)
 Players.PlayerRemoving:Connect(removeESPForPlayer)
 
 local function getCharacterScreenBox(character)
@@ -153,24 +142,18 @@ local function getCharacterScreenBox(character)
 	local rootCF = rootPart.CFrame
 	local size = Vector3.new(4, humanoid.HipHeight * 2 + 2, 4)
 	local corners = {
-		rootCF * CFrame.new( size.X/2,  size.Y/2,  size.Z/2),
-		rootCF * CFrame.new(-size.X/2,  size.Y/2,  size.Z/2),
-		rootCF * CFrame.new( size.X/2, -size.Y/2,  size.Z/2),
-		rootCF * CFrame.new(-size.X/2, -size.Y/2,  size.Z/2),
-		rootCF * CFrame.new( size.X/2,  size.Y/2, -size.Z/2),
-		rootCF * CFrame.new(-size.X/2,  size.Y/2, -size.Z/2),
-		rootCF * CFrame.new( size.X/2, -size.Y/2, -size.Z/2),
-		rootCF * CFrame.new(-size.X/2, -size.Y/2, -size.Z/2),
+		rootCF*CFrame.new( size.X/2, size.Y/2, size.Z/2), rootCF*CFrame.new(-size.X/2, size.Y/2, size.Z/2),
+		rootCF*CFrame.new( size.X/2,-size.Y/2, size.Z/2), rootCF*CFrame.new(-size.X/2,-size.Y/2, size.Z/2),
+		rootCF*CFrame.new( size.X/2, size.Y/2,-size.Z/2), rootCF*CFrame.new(-size.X/2, size.Y/2,-size.Z/2),
+		rootCF*CFrame.new( size.X/2,-size.Y/2,-size.Z/2), rootCF*CFrame.new(-size.X/2,-size.Y/2,-size.Z/2),
 	}
 	local minX, minY = math.huge, math.huge
 	local maxX, maxY = -math.huge, -math.huge
 	for _, cf in ipairs(corners) do
-		local screenPos, onScreen = Camera:WorldToViewportPoint(cf.Position)
+		local sp, onScreen = Camera:WorldToViewportPoint(cf.Position)
 		if not onScreen then return nil end
-		if screenPos.X < minX then minX = screenPos.X end
-		if screenPos.X > maxX then maxX = screenPos.X end
-		if screenPos.Y < minY then minY = screenPos.Y end
-		if screenPos.Y > maxY then maxY = screenPos.Y end
+		if sp.X < minX then minX = sp.X end if sp.X > maxX then maxX = sp.X end
+		if sp.Y < minY then minY = sp.Y end if sp.Y > maxY then maxY = sp.Y end
 	end
 	return minX, minY, maxX, maxY
 end
@@ -183,11 +166,10 @@ RunService.RenderStepped:Connect(function()
 			local minX, minY, maxX, maxY = getCharacterScreenBox(character)
 			if minX then
 				visible = true
-				local w = maxX - minX
-				local h = maxY - minY
+				local w, h = maxX - minX, maxY - minY
 				objs.outerBlack.Visible  = true
-				objs.outerBlack.Position = UDim2.new(0, minX - 1, 0, minY - 1)
-				objs.outerBlack.Size     = UDim2.new(0, w + 2, 0, h + 2)
+				objs.outerBlack.Position = UDim2.new(0, minX-1, 0, minY-1)
+				objs.outerBlack.Size     = UDim2.new(0, w+2, 0, h+2)
 				objs.box.Visible         = true
 				objs.box.Position        = UDim2.new(0, minX, 0, minY)
 				objs.box.Size            = UDim2.new(0, w, 0, h)
@@ -195,35 +177,98 @@ RunService.RenderStepped:Connect(function()
 				objs.accentBorder.Position = UDim2.new(0, minX, 0, minY)
 				objs.accentBorder.Size     = UDim2.new(0, w, 0, h)
 				objs.fill.Visible    = fillEnabled
-				objs.fill.Position   = UDim2.new(0, minX + 1, 0, minY + 1)
-				objs.fill.Size       = UDim2.new(0, w - 2, 0, h - 2)
-				objs.nameLabel.Visible   = nameEnabled
-				objs.nameLabel.Text      = target.DisplayName ~= "" and target.DisplayName or target.Name
-				objs.nameLabel.Position  = UDim2.new(0, minX, 0, minY - 16)
-				objs.nameLabel.Size      = UDim2.new(0, w, 0, 16)
+				objs.fill.Position   = UDim2.new(0, minX+1, 0, minY+1)
+				objs.fill.Size       = UDim2.new(0, w-2, 0, h-2)
+				objs.nameLabel.Visible  = nameEnabled
+				objs.nameLabel.Text     = target.DisplayName ~= "" and target.DisplayName or target.Name
+				objs.nameLabel.Position = UDim2.new(0, minX, 0, minY-16)
+				objs.nameLabel.Size     = UDim2.new(0, w, 0, 16)
 			end
 		end
 		if not visible then
-			objs.outerBlack.Visible   = false
-			objs.box.Visible          = false
-			objs.accentBorder.Visible = false
-			objs.fill.Visible         = false
-			objs.nameLabel.Visible    = false
+			objs.outerBlack.Visible=false objs.box.Visible=false
+			objs.accentBorder.Visible=false objs.fill.Visible=false objs.nameLabel.Visible=false
 		end
 	end
 end)
 
--- ScreenGui & MainFrame
+-- Stretched resolution logic
+-- We letterbox/pillarbox by overlaying black bars and faking a narrower viewport
+-- via a clipped Frame that forces the desired aspect ratio centered on screen.
+local stretchEnabled = false
+local STRETCH_RATIOS = {
+	{ label = "4:3",  w = 4,  h = 3  },
+	{ label = "5:4",  w = 5,  h = 4  },
+	{ label = "16:10",w = 16, h = 10 },
+}
+local currentRatioIdx = 1
+
+local StretchGui = Instance.new("ScreenGui")
+StretchGui.Name = "StretchGui"
+StretchGui.ResetOnSpawn = false
+StretchGui.DisplayOrder = 1
+StretchGui.IgnoreGuiInset = true
+StretchGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+StretchGui.Parent = playerGui
+
+-- Left and right black bars
+local BarLeft = Instance.new("Frame")
+BarLeft.BackgroundColor3 = Color3.fromRGB(0,0,0)
+BarLeft.BorderSizePixel = 0
+BarLeft.ZIndex = 1
+BarLeft.Visible = false
+BarLeft.Parent = StretchGui
+
+local BarRight = Instance.new("Frame")
+BarRight.BackgroundColor3 = Color3.fromRGB(0,0,0)
+BarRight.BorderSizePixel = 0
+BarRight.ZIndex = 1
+BarRight.Visible = false
+BarRight.Parent = StretchGui
+
+local function applyStretch()
+	local vp = Camera.ViewportSize
+	local ratio = STRETCH_RATIOS[currentRatioIdx]
+	local targetW = math.floor(vp.Y * (ratio.w / ratio.h))
+	local barW = math.floor((vp.X - targetW) / 2)
+	if barW <= 0 then
+		BarLeft.Visible = false
+		BarRight.Visible = false
+		return
+	end
+	BarLeft.Visible = true
+	BarLeft.Size = UDim2.new(0, barW, 1, 0)
+	BarLeft.Position = UDim2.new(0, 0, 0, 0)
+	BarRight.Visible = true
+	BarRight.Size = UDim2.new(0, barW, 1, 0)
+	BarRight.Position = UDim2.new(0, vp.X - barW, 0, 0)
+end
+
+local function disableStretch()
+	BarLeft.Visible = false
+	BarRight.Visible = false
+end
+
+RunService.RenderStepped:Connect(function()
+	if stretchEnabled then applyStretch() end
+end)
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Brandon.wtf"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999999
 ScreenGui.Parent = playerGui
 
+local MENU_WIDTH = 360
+local MIN_WIDTH  = 360
+local MIN_HEIGHT = 34
+local MAX_HEIGHT = 340
+local FOOTER_H   = 22
+
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 34)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
+MainFrame.Size = UDim2.new(0, MENU_WIDTH, 0, 34)
+MainFrame.Position = UDim2.new(0.5, -MENU_WIDTH/2, 0.5, -90)
 MainFrame.BackgroundColor3 = C.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -232,7 +277,6 @@ MainFrame.Parent = ScreenGui
 addOutlines(MainFrame)
 
 local TopBar = Instance.new("Frame")
-TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, -4, 0, 28)
 TopBar.Position = UDim2.new(0, 2, 0, 2)
 TopBar.BackgroundColor3 = C.topbar
@@ -273,14 +317,13 @@ HideBtn.Parent = TopBar
 addOutlines(HideBtn)
 
 local ScrollFrame = Instance.new("ScrollingFrame")
-ScrollFrame.Name = "ScrollFrame"
 ScrollFrame.Size = UDim2.new(1, -4, 0, 0)
 ScrollFrame.Position = UDim2.new(0, 2, 0, 32)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
 ScrollFrame.ScrollBarThickness = 3
 ScrollFrame.ScrollBarImageColor3 = C.accent
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
 ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ScrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
 ScrollFrame.ClipsDescendants = true
@@ -288,7 +331,6 @@ ScrollFrame.Visible = false
 ScrollFrame.Parent = MainFrame
 
 local Container = Instance.new("Frame")
-Container.Name = "Container"
 Container.Size = UDim2.new(1, -12, 0, 0)
 Container.Position = UDim2.new(0, 6, 0, 6)
 Container.BackgroundTransparency = 1
@@ -301,6 +343,96 @@ ContainerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ContainerLayout.Padding = UDim.new(0, 8)
 ContainerLayout.Parent = Container
 
+-- Footer bar (UUID display)
+local Footer = Instance.new("Frame")
+Footer.Name = "Footer"
+Footer.Size = UDim2.new(1, -4, 0, FOOTER_H)
+Footer.Position = UDim2.new(0, 2, 1, -FOOTER_H - 2)
+Footer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Footer.BorderSizePixel = 0
+Footer.ZIndex = 5
+Footer.Visible = false
+Footer.Parent = MainFrame
+
+local FooterAccent = Instance.new("Frame")
+FooterAccent.Size = UDim2.new(1, 0, 0, 1)
+FooterAccent.Position = UDim2.new(0, 0, 0, 0)
+FooterAccent.BackgroundColor3 = C.accent
+FooterAccent.BackgroundTransparency = 0.6
+FooterAccent.BorderSizePixel = 0
+FooterAccent.ZIndex = 6
+FooterAccent.Parent = Footer
+
+local FooterDot = Instance.new("Frame")
+FooterDot.Size = UDim2.new(0, 6, 0, 6)
+FooterDot.Position = UDim2.new(0, 8, 0.5, -3)
+FooterDot.BackgroundColor3 = C.accent
+FooterDot.BorderSizePixel = 0
+FooterDot.ZIndex = 6
+FooterDot.Parent = Footer
+local FooterDotCorner = Instance.new("UICorner")
+FooterDotCorner.CornerRadius = UDim.new(1, 0)
+FooterDotCorner.Parent = FooterDot
+
+local FooterLabel = Instance.new("TextLabel")
+FooterLabel.Size = UDim2.new(1, -24, 1, 0)
+FooterLabel.Position = UDim2.new(0, 20, 0, 0)
+FooterLabel.BackgroundTransparency = 1
+FooterLabel.Text = "uid: " .. tostring(player.UserId)
+FooterLabel.TextColor3 = C.dim
+FooterLabel.TextSize = 11
+FooterLabel.Font = Enum.Font.Code
+FooterLabel.TextXAlignment = Enum.TextXAlignment.Left
+FooterLabel.TextYAlignment = Enum.TextYAlignment.Center
+FooterLabel.ZIndex = 6
+FooterLabel.Parent = Footer
+
+local FooterCopy = Instance.new("TextButton")
+FooterCopy.Size = UDim2.new(0, 36, 0, 14)
+FooterCopy.Position = UDim2.new(1, -40, 0.5, -7)
+FooterCopy.BackgroundColor3 = C.item
+FooterCopy.BorderSizePixel = 0
+FooterCopy.AutoButtonColor = false
+FooterCopy.Text = "copy"
+FooterCopy.TextColor3 = C.dim
+FooterCopy.TextSize = 10
+FooterCopy.Font = Enum.Font.Code
+FooterCopy.ZIndex = 6
+FooterCopy.Parent = Footer
+addOutlines(FooterCopy)
+
+-- Copy button flashes accent on click (can't actually write to clipboard in Roblox executor env
+-- but shows user the value and gives tactile feedback)
+FooterCopy.MouseButton1Click:Connect(function()
+	FooterCopy.Text = "✓"
+	FooterCopy.TextColor3 = C.accent
+	task.delay(1.2, function()
+		FooterCopy.Text = "copy"
+		FooterCopy.TextColor3 = C.dim
+	end)
+end)
+FooterCopy.MouseEnter:Connect(function() FooterCopy.TextColor3 = C.text end)
+FooterCopy.MouseLeave:Connect(function() FooterCopy.TextColor3 = C.dim end)
+
+-- Resize handle
+local ResizeHandle = Instance.new("TextButton")
+ResizeHandle.Size = UDim2.new(0, 14, 0, 14)
+ResizeHandle.Position = UDim2.new(1, -15, 1, -15)
+ResizeHandle.BackgroundColor3 = C.accent
+ResizeHandle.BackgroundTransparency = 0.4
+ResizeHandle.BorderSizePixel = 0
+ResizeHandle.AutoButtonColor = false
+ResizeHandle.Text = "⌟"
+ResizeHandle.TextColor3 = C.text
+ResizeHandle.TextSize = 11
+ResizeHandle.Font = Enum.Font.Code
+ResizeHandle.ZIndex = 20
+ResizeHandle.Visible = false
+ResizeHandle.Parent = MainFrame
+
+local contentVisible = false
+local currentMenuWidth = MENU_WIDTH
+
 local function makeSection(name, labelWidth)
 	local sec = Instance.new("Frame")
 	sec.BackgroundColor3 = C.panel
@@ -310,7 +442,6 @@ local function makeSection(name, labelWidth)
 	sec.Size = UDim2.new(1, 0, 0, 0)
 	sec.Parent = Container
 	addOutlines(sec)
-
 	local stf = Instance.new("Frame")
 	stf.Size = UDim2.new(0, labelWidth or 50, 0, 8)
 	stf.Position = UDim2.new(0, 10, 0, 0)
@@ -318,7 +449,6 @@ local function makeSection(name, labelWidth)
 	stf.BorderSizePixel = 0
 	stf.ZIndex = 3
 	stf.Parent = sec
-
 	local st = Instance.new("TextLabel")
 	st.Size = UDim2.new(1, 0, 0, 14)
 	st.Position = UDim2.new(0, 0, 0, -3)
@@ -329,7 +459,6 @@ local function makeSection(name, labelWidth)
 	st.Font = Enum.Font.Code
 	st.ZIndex = 4
 	st.Parent = stf
-
 	local ih = Instance.new("Frame")
 	ih.Name = "ItemHolder"
 	ih.Size = UDim2.new(1, -16, 0, 0)
@@ -339,16 +468,13 @@ local function makeSection(name, labelWidth)
 	ih.AutomaticSize = Enum.AutomaticSize.Y
 	ih.ZIndex = 2
 	ih.Parent = sec
-
 	local il = Instance.new("UIListLayout")
 	il.SortOrder = Enum.SortOrder.LayoutOrder
 	il.Padding = UDim.new(0, 5)
 	il.Parent = ih
-
 	local pad = Instance.new("UIPadding")
 	pad.PaddingBottom = UDim.new(0, 10)
 	pad.Parent = ih
-
 	return sec, ih, il
 end
 
@@ -359,7 +485,6 @@ local function makeCheckbox(parent, labelText)
 	row.BorderSizePixel = 0
 	row.ZIndex = 2
 	row.Parent = parent
-
 	local box = Instance.new("TextButton")
 	box.Size = UDim2.new(0, 14, 0, 14)
 	box.Position = UDim2.new(0, 0, 0.5, -7)
@@ -370,7 +495,6 @@ local function makeCheckbox(parent, labelText)
 	box.ZIndex = 3
 	box.Parent = row
 	addOutlines(box)
-
 	local boxFill = Instance.new("Frame")
 	boxFill.Size = UDim2.new(1, -4, 1, -4)
 	boxFill.Position = UDim2.new(0, 2, 0, 2)
@@ -379,7 +503,6 @@ local function makeCheckbox(parent, labelText)
 	boxFill.Visible = false
 	boxFill.ZIndex = 4
 	boxFill.Parent = box
-
 	local lbl = Instance.new("TextLabel")
 	lbl.Size = UDim2.new(1, -22, 1, 0)
 	lbl.Position = UDim2.new(0, 22, 0, 0)
@@ -392,37 +515,123 @@ local function makeCheckbox(parent, labelText)
 	lbl.TextYAlignment = Enum.TextYAlignment.Center
 	lbl.ZIndex = 3
 	lbl.Parent = row
-
 	local state = false
 	local function setState(val)
 		state = val
 		boxFill.Visible = state
 		lbl.TextColor3 = state and C.text or C.muted
 	end
-
 	box.MouseButton1Click:Connect(function() setState(not state) end)
 	box.MouseEnter:Connect(function() box.BorderSizePixel = 1 end)
 	box.MouseLeave:Connect(function() box.BorderSizePixel = 0 end)
-
 	return row, function() return state end, setState
 end
 
--- Color picker popup (HV square + Hue bar)
+-- Dropdown widget (for resolution picker)
+local function makeDropdown(parent, labelText, options, defaultIdx, onChange)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 20)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.ZIndex = 2
+	row.Parent = parent
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0.5, -4, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = C.muted
+	lbl.TextSize = 14
+	lbl.Font = Enum.Font.Code
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 3
+	lbl.Parent = row
+
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0.5, 0, 1, 0)
+	btn.Position = UDim2.new(0.5, 0, 0, 0)
+	btn.BackgroundColor3 = C.item
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = false
+	btn.Text = options[defaultIdx] .. " ▾"
+	btn.TextColor3 = C.text
+	btn.TextSize = 13
+	btn.Font = Enum.Font.Code
+	btn.ZIndex = 3
+	btn.Parent = row
+	addOutlines(btn)
+
+	local selectedIdx = defaultIdx
+	local dropOpen = false
+	local dropFrame = nil
+
+	local function closeDropdown()
+		if dropFrame then dropFrame:Destroy() dropFrame = nil end
+		dropOpen = false
+		btn.Text = options[selectedIdx] .. " ▾"
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		if dropOpen then closeDropdown() return end
+		dropOpen = true
+		btn.Text = options[selectedIdx] .. " ▴"
+
+		dropFrame = Instance.new("Frame")
+		dropFrame.Size = UDim2.new(0.5, 0, 0, #options * 22)
+		dropFrame.Position = UDim2.new(0.5, 0, 1, 2)
+		dropFrame.BackgroundColor3 = C.bg
+		dropFrame.BorderSizePixel = 0
+		dropFrame.ZIndex = 50
+		dropFrame.Parent = row
+		addOutlines(dropFrame)
+
+		for i, opt in ipairs(options) do
+			local item = Instance.new("TextButton")
+			item.Size = UDim2.new(1, 0, 0, 22)
+			item.Position = UDim2.new(0, 0, 0, (i-1)*22)
+			item.BackgroundColor3 = (i == selectedIdx) and C.accent or C.item
+			item.BackgroundTransparency = (i == selectedIdx) and 0.5 or 0
+			item.BorderSizePixel = 0
+			item.AutoButtonColor = false
+			item.Text = opt
+			item.TextColor3 = (i == selectedIdx) and C.text or C.muted
+			item.TextSize = 13
+			item.Font = Enum.Font.Code
+			item.ZIndex = 51
+			item.Parent = dropFrame
+			item.MouseButton1Click:Connect(function()
+				selectedIdx = i
+				onChange(i)
+				closeDropdown()
+			end)
+			item.MouseEnter:Connect(function()
+				if i ~= selectedIdx then item.BackgroundColor3 = C.panel end
+			end)
+			item.MouseLeave:Connect(function()
+				if i ~= selectedIdx then item.BackgroundColor3 = C.item end
+			end)
+		end
+	end)
+
+	btn.MouseEnter:Connect(function() btn.BorderSizePixel = 1 end)
+	btn.MouseLeave:Connect(function() btn.BorderSizePixel = 0 end)
+
+	return row
+end
+
 local ColorPickerPopup = Instance.new("Frame")
-ColorPickerPopup.Name = "ColorPickerPopup"
 ColorPickerPopup.Size = UDim2.new(0, 200, 0, 170)
 ColorPickerPopup.BackgroundColor3 = C.bg
 ColorPickerPopup.BorderSizePixel = 0
 ColorPickerPopup.ZIndex = 100
 ColorPickerPopup.Visible = false
 ColorPickerPopup.Active = true
-ColorPickerPopup.Draggable = false
 ColorPickerPopup.Parent = ScreenGui
 addOutlines(ColorPickerPopup)
 
 local CPTitle = Instance.new("TextLabel")
-CPTitle.Size = UDim2.new(1, -8, 0, 18)
-CPTitle.Position = UDim2.new(0, 6, 0, 4)
+CPTitle.Size = UDim2.new(1,-8,0,18)
+CPTitle.Position = UDim2.new(0,6,0,4)
 CPTitle.BackgroundTransparency = 1
 CPTitle.Text = "Color"
 CPTitle.TextColor3 = C.muted
@@ -433,8 +642,8 @@ CPTitle.ZIndex = 101
 CPTitle.Parent = ColorPickerPopup
 
 local CPClose = Instance.new("TextButton")
-CPClose.Size = UDim2.new(0, 18, 0, 14)
-CPClose.Position = UDim2.new(1, -22, 0, 4)
+CPClose.Size = UDim2.new(0,18,0,14)
+CPClose.Position = UDim2.new(1,-22,0,4)
 CPClose.BackgroundColor3 = C.item
 CPClose.BorderSizePixel = 0
 CPClose.AutoButtonColor = false
@@ -446,66 +655,59 @@ CPClose.ZIndex = 102
 CPClose.Parent = ColorPickerPopup
 addOutlines(CPClose)
 
--- SV square (saturation + value)
 local SVSquare = Instance.new("ImageLabel")
-SVSquare.Size = UDim2.new(0, 152, 0, 120)
-SVSquare.Position = UDim2.new(0, 8, 0, 26)
+SVSquare.Size = UDim2.new(0,152,0,120)
+SVSquare.Position = UDim2.new(0,8,0,26)
 SVSquare.BorderSizePixel = 0
 SVSquare.Image = "rbxassetid://698052001"
-SVSquare.BackgroundColor3 = Color3.fromHSV(0.77, 1, 1)
+SVSquare.BackgroundColor3 = Color3.fromHSV(0.77,1,1)
 SVSquare.ZIndex = 101
 SVSquare.Parent = ColorPickerPopup
 addOutlines(SVSquare)
 
--- white->transparent left-to-right gradient
 local SVWhite = Instance.new("ImageLabel")
-SVWhite.Size = UDim2.new(1, 0, 1, 0)
+SVWhite.Size = UDim2.new(1,0,1,0)
 SVWhite.BackgroundTransparency = 1
 SVWhite.Image = "rbxassetid://698053051"
 SVWhite.ZIndex = 102
 SVWhite.Parent = SVSquare
 
--- black->transparent bottom gradient
 local SVBlack = Instance.new("ImageLabel")
-SVBlack.Size = UDim2.new(1, 0, 1, 0)
+SVBlack.Size = UDim2.new(1,0,1,0)
 SVBlack.BackgroundTransparency = 1
 SVBlack.Image = "rbxassetid://698051519"
 SVBlack.ZIndex = 103
 SVBlack.Parent = SVSquare
 
--- SV cursor
 local SVCursor = Instance.new("Frame")
-SVCursor.Size = UDim2.new(0, 8, 0, 8)
-SVCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SVCursor.Size = UDim2.new(0,8,0,8)
+SVCursor.BackgroundColor3 = Color3.fromRGB(255,255,255)
 SVCursor.BorderSizePixel = 0
 SVCursor.ZIndex = 104
 SVCursor.Parent = SVSquare
 addOutlines(SVCursor)
 
--- Hue bar (vertical, right side)
 local HueBar = Instance.new("ImageLabel")
-HueBar.Size = UDim2.new(0, 16, 0, 120)
-HueBar.Position = UDim2.new(0, 168, 0, 26)
+HueBar.Size = UDim2.new(0,16,0,120)
+HueBar.Position = UDim2.new(0,168,0,26)
 HueBar.BorderSizePixel = 0
 HueBar.Image = "rbxassetid://698054456"
 HueBar.ZIndex = 101
 HueBar.Parent = ColorPickerPopup
 addOutlines(HueBar)
 
--- Hue cursor
 local HueCursor = Instance.new("Frame")
-HueCursor.Size = UDim2.new(1, 2, 0, 3)
-HueCursor.Position = UDim2.new(0, -1, 0, 0)
-HueCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+HueCursor.Size = UDim2.new(1,2,0,3)
+HueCursor.Position = UDim2.new(0,-1,0,0)
+HueCursor.BackgroundColor3 = Color3.fromRGB(255,255,255)
 HueCursor.BorderSizePixel = 0
 HueCursor.ZIndex = 102
 HueCursor.Parent = HueBar
 addOutlines(HueCursor)
 
--- Preview swatch bottom
 local CPPreview = Instance.new("Frame")
-CPPreview.Size = UDim2.new(0, 152, 0, 12)
-CPPreview.Position = UDim2.new(0, 8, 0, 152)
+CPPreview.Size = UDim2.new(0,152,0,12)
+CPPreview.Position = UDim2.new(0,8,0,152)
 CPPreview.BorderSizePixel = 0
 CPPreview.ZIndex = 101
 CPPreview.Parent = ColorPickerPopup
@@ -515,98 +717,75 @@ local currentOnChange = nil
 local cpH, cpS, cpV = 0.77, 1, 1
 
 local function cpUpdateVisuals()
-	SVSquare.BackgroundColor3 = Color3.fromHSV(cpH, 1, 1)
-	SVCursor.Position = UDim2.new(cpS, -4, 1 - cpV, -4)
-	HueCursor.Position = UDim2.new(0, -1, 1 - cpH, -1)
-	local col = Color3.fromHSV(cpH, cpS, cpV)
+	SVSquare.BackgroundColor3 = Color3.fromHSV(cpH,1,1)
+	SVCursor.Position = UDim2.new(cpS,-4,1-cpV,-4)
+	HueCursor.Position = UDim2.new(0,-1,1-cpH,-1)
+	local col = Color3.fromHSV(cpH,cpS,cpV)
 	CPPreview.BackgroundColor3 = col
 	if currentOnChange then currentOnChange(col) end
 end
 
-local svDragging = false
-local hueDragging = false
+local svDragging, hueDragging = false, false
 
 SVSquare.InputBegan:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1
-		or inp.UserInputType == Enum.UserInputType.Touch then
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
 		svDragging = true
-		local rel = inp.Position
-		local ax, ay = SVSquare.AbsolutePosition.X, SVSquare.AbsolutePosition.Y
-		local aw, ah = SVSquare.AbsoluteSize.X, SVSquare.AbsoluteSize.Y
-		cpS = math.clamp((rel.X - ax) / aw, 0, 1)
-		cpV = 1 - math.clamp((rel.Y - ay) / ah, 0, 1)
+		local ax,ay = SVSquare.AbsolutePosition.X, SVSquare.AbsolutePosition.Y
+		local aw,ah = SVSquare.AbsoluteSize.X, SVSquare.AbsoluteSize.Y
+		cpS = math.clamp((inp.Position.X-ax)/aw,0,1)
+		cpV = 1-math.clamp((inp.Position.Y-ay)/ah,0,1)
 		cpUpdateVisuals()
 	end
 end)
-
 SVSquare.InputEnded:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1
-		or inp.UserInputType == Enum.UserInputType.Touch then
-		svDragging = false
-	end
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then svDragging=false end
 end)
-
 HueBar.InputBegan:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1
-		or inp.UserInputType == Enum.UserInputType.Touch then
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
 		hueDragging = true
-		local ay = HueBar.AbsolutePosition.Y
-		local ah = HueBar.AbsoluteSize.Y
-		cpH = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+		cpH = 1-math.clamp((inp.Position.Y-HueBar.AbsolutePosition.Y)/HueBar.AbsoluteSize.Y,0,1)
 		cpUpdateVisuals()
 	end
 end)
-
 HueBar.InputEnded:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1
-		or inp.UserInputType == Enum.UserInputType.Touch then
-		hueDragging = false
-	end
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then hueDragging=false end
 end)
-
 UserInputService.InputChanged:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseMovement
-		or inp.UserInputType == Enum.UserInputType.Touch then
+	if inp.UserInputType==Enum.UserInputType.MouseMovement or inp.UserInputType==Enum.UserInputType.Touch then
 		if svDragging then
-			local ax, ay = SVSquare.AbsolutePosition.X, SVSquare.AbsolutePosition.Y
-			local aw, ah = SVSquare.AbsoluteSize.X, SVSquare.AbsoluteSize.Y
-			cpS = math.clamp((inp.Position.X - ax) / aw, 0, 1)
-			cpV = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+			local ax,ay = SVSquare.AbsolutePosition.X,SVSquare.AbsolutePosition.Y
+			local aw,ah = SVSquare.AbsoluteSize.X,SVSquare.AbsoluteSize.Y
+			cpS = math.clamp((inp.Position.X-ax)/aw,0,1)
+			cpV = 1-math.clamp((inp.Position.Y-ay)/ah,0,1)
 			cpUpdateVisuals()
 		elseif hueDragging then
-			local ay = HueBar.AbsolutePosition.Y
-			local ah = HueBar.AbsoluteSize.Y
-			cpH = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+			cpH = 1-math.clamp((inp.Position.Y-HueBar.AbsolutePosition.Y)/HueBar.AbsoluteSize.Y,0,1)
 			cpUpdateVisuals()
 		end
 	end
 end)
-
-CPClose.MouseButton1Click:Connect(function()
-	ColorPickerPopup.Visible = false
-end)
+CPClose.MouseButton1Click:Connect(function() ColorPickerPopup.Visible = false end)
 
 local function openColorPicker(label, currentColor, onChange)
 	currentOnChange = onChange
 	CPTitle.Text = label
-	cpH, cpS, cpV = Color3.toHSV(currentColor)
+	cpH,cpS,cpV = Color3.toHSV(currentColor)
 	cpUpdateVisuals()
 	local mp = MainFrame.AbsolutePosition
 	local ms = MainFrame.AbsoluteSize
-	ColorPickerPopup.Position = UDim2.new(0, mp.X + ms.X + 6, 0, mp.Y)
+	ColorPickerPopup.Position = UDim2.new(0, mp.X+ms.X+6, 0, mp.Y)
 	ColorPickerPopup.Visible = true
 end
 
 local function makeColorRow(parent, labelText, getColor, onPick)
 	local row = Instance.new("Frame")
-	row.Size = UDim2.new(1, 0, 0, 20)
+	row.Size = UDim2.new(1,0,0,20)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
 	row.ZIndex = 2
 	row.Parent = parent
-
 	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.new(1, -50, 1, 0)
+	lbl.Size = UDim2.new(1,-50,1,0)
 	lbl.BackgroundTransparency = 1
 	lbl.Text = labelText
 	lbl.TextColor3 = C.muted
@@ -615,10 +794,9 @@ local function makeColorRow(parent, labelText, getColor, onPick)
 	lbl.TextXAlignment = Enum.TextXAlignment.Left
 	lbl.ZIndex = 3
 	lbl.Parent = row
-
 	local swatch = Instance.new("TextButton")
-	swatch.Size = UDim2.new(0, 40, 0, 14)
-	swatch.Position = UDim2.new(1, -40, 0.5, -7)
+	swatch.Size = UDim2.new(0,40,0,14)
+	swatch.Position = UDim2.new(1,-40,0.5,-7)
 	swatch.BackgroundColor3 = getColor()
 	swatch.BorderSizePixel = 0
 	swatch.AutoButtonColor = false
@@ -626,34 +804,51 @@ local function makeColorRow(parent, labelText, getColor, onPick)
 	swatch.ZIndex = 3
 	swatch.Parent = row
 	addOutlines(swatch)
-
 	swatch.MouseButton1Click:Connect(function()
 		openColorPicker(labelText, getColor(), function(col)
 			swatch.BackgroundColor3 = col
 			onPick(col)
 		end)
 	end)
-
-	swatch.MouseEnter:Connect(function() swatch.BorderSizePixel = 1 end)
-	swatch.MouseLeave:Connect(function() swatch.BorderSizePixel = 0 end)
-
+	swatch.MouseEnter:Connect(function() swatch.BorderSizePixel=1 end)
+	swatch.MouseLeave:Connect(function() swatch.BorderSizePixel=0 end)
 	return row
 end
 
+
 local CosmeticSection, CosmeticHolder = makeSection("Cosmetics", 70)
 
-local SkinBtn = Instance.new("TextButton")
-SkinBtn.Size = UDim2.new(1, 0, 0, 20)
-SkinBtn.BackgroundColor3 = C.item
-SkinBtn.BorderSizePixel = 0
-SkinBtn.AutoButtonColor = false
-SkinBtn.Text = "Unlock All Skins"
-SkinBtn.TextColor3 = C.text
-SkinBtn.TextSize = 14
-SkinBtn.Font = Enum.Font.Code
-SkinBtn.ZIndex = 2
-SkinBtn.Parent = CosmeticHolder
-addOutlines(SkinBtn)
+local skinRow, getSkinToggle, setSkinToggle = makeCheckbox(CosmeticHolder, "Unlock All Skins")
+local skinCheckbox = skinRow:FindFirstChildOfClass("TextButton")
+skinCheckbox.MouseButton1Click:Connect(function()
+	local newState = not getSkinToggle()
+	setSkinToggle(newState)
+	if newState then
+		pcall(function()
+			loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
+		end)
+	end
+end)
+
+local VideoSection, VideoHolder = makeSection("Video", 44)
+
+local ratioLabels = {}
+for _, r in ipairs(STRETCH_RATIOS) do table.insert(ratioLabels, r.label) end
+
+local _, getStretchToggle, setStretchToggle = makeCheckbox(VideoHolder, "Stretched Res")
+local stretchCheckbox = VideoHolder:GetChildren()[1]:FindFirstChildOfClass("TextButton")
+
+makeDropdown(VideoHolder, "Aspect Ratio", ratioLabels, currentRatioIdx, function(idx)
+	currentRatioIdx = idx
+	if stretchEnabled then applyStretch() end
+end)
+
+stretchCheckbox.MouseButton1Click:Connect(function()
+	local newState = not getStretchToggle()
+	setStretchToggle(newState)
+	stretchEnabled = newState
+	if not newState then disableStretch() end
+end)
 
 local ESPSection, ESPHolder = makeSection("ESP", 36)
 
@@ -662,70 +857,78 @@ local _, getNameESP = makeCheckbox(ESPHolder, "Name ESP")
 local _, getFillESP = makeCheckbox(ESPHolder, "Fill Box")
 
 makeColorRow(ESPHolder, "Box Color", function() return boxColor end, function(col)
-	boxColor = col
-	updateESPColors()
+	boxColor = col; updateESPColors()
 end)
-
 makeColorRow(ESPHolder, "Name Color", function() return nameColor end, function(col)
-	nameColor = col
-	updateESPColors()
+	nameColor = col; updateESPColors()
 end)
-
-local MAX_HEIGHT = 260
 
 local function resizeAll()
+	if not contentVisible then return end
 	local canvasH = Container.AbsoluteSize.Y + 14
-	local frameH  = math.min(canvasH, MAX_HEIGHT) + 34
-	ScrollFrame.Size = UDim2.new(1, -4, 0, frameH - 34)
-	MainFrame.Size   = UDim2.new(0, 300, 0, frameH)
+	local frameH  = math.min(canvasH, MAX_HEIGHT) + 34 + FOOTER_H + 2
+	ScrollFrame.Size = UDim2.new(1, -4, 0, frameH - 34 - FOOTER_H - 2)
+	MainFrame.Size   = UDim2.new(0, currentMenuWidth, 0, frameH)
+	Footer.Position  = UDim2.new(0, 2, 1, -FOOTER_H - 2)
 end
 
 ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resizeAll)
 
-coroutine.wrap(function()
-	task.wait()
-	resizeAll()
-end)()
+coroutine.wrap(function() task.wait(); resizeAll() end)()
+coroutine.wrap(function() while task.wait() do AccentLine.BackgroundColor3 = C.accent end end)()
 
-coroutine.wrap(function()
-	while task.wait() do
-		AccentLine.BackgroundColor3 = C.accent
-	end
-end)()
-
-local contentVisible = false
 HideBtn.MouseButton1Click:Connect(function()
 	contentVisible = not contentVisible
 	ScrollFrame.Visible = contentVisible
+	Footer.Visible = contentVisible
+	ResizeHandle.Visible = contentVisible
 	HideBtn.Text = contentVisible and "—" or "+"
 	if contentVisible then
 		resizeAll()
 	else
-		MainFrame.Size = UDim2.new(0, 300, 0, 34)
+		MainFrame.Size = UDim2.new(0, currentMenuWidth, 0, 34)
 		ColorPickerPopup.Visible = false
 	end
 end)
 
-HideBtn.MouseEnter:Connect(function() HideBtn.BorderSizePixel = 1 end)
-HideBtn.MouseLeave:Connect(function() HideBtn.BorderSizePixel = 0 end)
-SkinBtn.MouseEnter:Connect(function() SkinBtn.BorderSizePixel = 1 end)
-SkinBtn.MouseLeave:Connect(function() SkinBtn.BorderSizePixel = 0 end)
+local resizeDragging = false
+local resizeStartMouse, resizeStartSize = nil, nil
+
+ResizeHandle.InputBegan:Connect(function(inp)
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+		resizeDragging = true
+		MainFrame.Draggable = false
+		resizeStartMouse = Vector2.new(inp.Position.X, inp.Position.Y)
+		resizeStartSize  = Vector2.new(MainFrame.AbsoluteSize.X, MainFrame.AbsoluteSize.Y)
+	end
+end)
+ResizeHandle.InputEnded:Connect(function(inp)
+	if inp.UserInputType==Enum.UserInputType.MouseButton1 or inp.UserInputType==Enum.UserInputType.Touch then
+		resizeDragging = false
+		MainFrame.Draggable = true
+	end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+	if resizeDragging and (inp.UserInputType==Enum.UserInputType.MouseMovement or inp.UserInputType==Enum.UserInputType.Touch) then
+		local delta = Vector2.new(inp.Position.X, inp.Position.Y) - resizeStartMouse
+		local newW  = math.max(MIN_WIDTH, resizeStartSize.X + delta.X)
+		local canvasH = Container.AbsoluteSize.Y + 14
+		local capH  = math.min(canvasH, MAX_HEIGHT) + 34 + FOOTER_H + 2
+		local newH  = math.max(MIN_HEIGHT, math.min(capH, resizeStartSize.Y + delta.Y))
+		currentMenuWidth = newW
+		MainFrame.Size   = UDim2.new(0, newW, 0, newH)
+		ScrollFrame.Size = UDim2.new(1, -4, 0, newH - 34 - FOOTER_H - 2)
+	end
+end)
+
+HideBtn.MouseEnter:Connect(function() HideBtn.BorderSizePixel=1 end)
+HideBtn.MouseLeave:Connect(function() HideBtn.BorderSizePixel=0 end)
 
 RunService.Heartbeat:Connect(function()
 	espEnabled  = getBoxESP()
 	nameEnabled = getNameESP()
 	fillEnabled = getFillESP()
 	if espEnabled then initESP() else clearAllESP() end
-end)
-
-SkinBtn.MouseButton1Click:Connect(function()
-	SkinBtn.Text = "Loading..."
-	SkinBtn.TextColor3 = C.dim
-	pcall(function()
-		loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
-		SkinBtn.Text = "Unlocked"
-		SkinBtn.TextColor3 = C.accent
-	end)
 end)
 
 UserInputService.InputBegan:Connect(function(i)
