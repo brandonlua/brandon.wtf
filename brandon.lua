@@ -130,8 +130,12 @@ end
 
 local function updateESPColors()
 	for _, objs in pairs(espObjects) do
-		local borderImg = objs.accentBorder:GetChildren()
-		if borderImg[1] then borderImg[1].ImageColor3 = boxColor end
+		local borderImgs = objs.accentBorder:GetChildren()
+		for _, img in ipairs(borderImgs) do
+			if img:IsA("ImageLabel") and img.Position == UDim2.new(0, 0, 0, 0) then
+				img.ImageColor3 = boxColor
+			end
+		end
 		objs.fill.BackgroundColor3 = boxColor
 		objs.nameLabel.TextColor3  = nameColor
 	end
@@ -209,6 +213,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- ScreenGui & MainFrame
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Brandon.wtf"
 ScreenGui.ResetOnSpawn = false
@@ -267,7 +272,6 @@ HideBtn.ZIndex = 2
 HideBtn.Parent = TopBar
 addOutlines(HideBtn)
 
--- Scroll container
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Name = "ScrollFrame"
 ScrollFrame.Size = UDim2.new(1, -4, 0, 0)
@@ -403,137 +407,239 @@ local function makeCheckbox(parent, labelText)
 	return row, function() return state end, setState
 end
 
--- RGB sliders for color picking
-local function makeColorPicker(parent, labelText, defaultColor, onChange)
-	local wrapper = Instance.new("Frame")
-	wrapper.Size = UDim2.new(1, 0, 0, 0)
-	wrapper.BackgroundTransparency = 1
-	wrapper.BorderSizePixel = 0
-	wrapper.AutomaticSize = Enum.AutomaticSize.Y
-	wrapper.ZIndex = 2
-	wrapper.Parent = parent
+-- Color picker popup (HV square + Hue bar)
+local ColorPickerPopup = Instance.new("Frame")
+ColorPickerPopup.Name = "ColorPickerPopup"
+ColorPickerPopup.Size = UDim2.new(0, 200, 0, 170)
+ColorPickerPopup.BackgroundColor3 = C.bg
+ColorPickerPopup.BorderSizePixel = 0
+ColorPickerPopup.ZIndex = 100
+ColorPickerPopup.Visible = false
+ColorPickerPopup.Active = true
+ColorPickerPopup.Draggable = false
+ColorPickerPopup.Parent = ScreenGui
+addOutlines(ColorPickerPopup)
 
-	local wLayout = Instance.new("UIListLayout")
-	wLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	wLayout.Padding = UDim.new(0, 4)
-	wLayout.Parent = wrapper
+local CPTitle = Instance.new("TextLabel")
+CPTitle.Size = UDim2.new(1, -8, 0, 18)
+CPTitle.Position = UDim2.new(0, 6, 0, 4)
+CPTitle.BackgroundTransparency = 1
+CPTitle.Text = "Color"
+CPTitle.TextColor3 = C.muted
+CPTitle.TextSize = 12
+CPTitle.Font = Enum.Font.Code
+CPTitle.TextXAlignment = Enum.TextXAlignment.Left
+CPTitle.ZIndex = 101
+CPTitle.Parent = ColorPickerPopup
 
-	local headerRow = Instance.new("Frame")
-	headerRow.Size = UDim2.new(1, 0, 0, 18)
-	headerRow.BackgroundTransparency = 1
-	headerRow.ZIndex = 2
-	headerRow.Parent = wrapper
+local CPClose = Instance.new("TextButton")
+CPClose.Size = UDim2.new(0, 18, 0, 14)
+CPClose.Position = UDim2.new(1, -22, 0, 4)
+CPClose.BackgroundColor3 = C.item
+CPClose.BorderSizePixel = 0
+CPClose.AutoButtonColor = false
+CPClose.Text = "×"
+CPClose.TextColor3 = C.muted
+CPClose.TextSize = 14
+CPClose.Font = Enum.Font.Code
+CPClose.ZIndex = 102
+CPClose.Parent = ColorPickerPopup
+addOutlines(CPClose)
 
-	local headerLbl = Instance.new("TextLabel")
-	headerLbl.Size = UDim2.new(0.7, 0, 1, 0)
-	headerLbl.BackgroundTransparency = 1
-	headerLbl.Text = labelText
-	headerLbl.TextColor3 = C.muted
-	headerLbl.TextSize = 13
-	headerLbl.Font = Enum.Font.Code
-	headerLbl.TextXAlignment = Enum.TextXAlignment.Left
-	headerLbl.ZIndex = 3
-	headerLbl.Parent = headerRow
+-- SV square (saturation + value)
+local SVSquare = Instance.new("ImageLabel")
+SVSquare.Size = UDim2.new(0, 152, 0, 120)
+SVSquare.Position = UDim2.new(0, 8, 0, 26)
+SVSquare.BorderSizePixel = 0
+SVSquare.Image = "rbxassetid://698052001"
+SVSquare.BackgroundColor3 = Color3.fromHSV(0.77, 1, 1)
+SVSquare.ZIndex = 101
+SVSquare.Parent = ColorPickerPopup
+addOutlines(SVSquare)
 
-	local preview = Instance.new("Frame")
-	preview.Size = UDim2.new(0, 40, 0, 14)
-	preview.Position = UDim2.new(1, -40, 0.5, -7)
-	preview.BackgroundColor3 = defaultColor
-	preview.BorderSizePixel = 0
-	preview.ZIndex = 3
-	preview.Parent = headerRow
-	addOutlines(preview)
+-- white->transparent left-to-right gradient
+local SVWhite = Instance.new("ImageLabel")
+SVWhite.Size = UDim2.new(1, 0, 1, 0)
+SVWhite.BackgroundTransparency = 1
+SVWhite.Image = "rbxassetid://698053051"
+SVWhite.ZIndex = 102
+SVWhite.Parent = SVSquare
 
-	local r, g, b = defaultColor.R * 255, defaultColor.G * 255, defaultColor.B * 255
+-- black->transparent bottom gradient
+local SVBlack = Instance.new("ImageLabel")
+SVBlack.Size = UDim2.new(1, 0, 1, 0)
+SVBlack.BackgroundTransparency = 1
+SVBlack.Image = "rbxassetid://698051519"
+SVBlack.ZIndex = 103
+SVBlack.Parent = SVSquare
 
-	local function makeSliderRow(chName, getValue, setValue)
-		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 16)
-		row.BackgroundTransparency = 1
-		row.ZIndex = 2
-		row.Parent = wrapper
+-- SV cursor
+local SVCursor = Instance.new("Frame")
+SVCursor.Size = UDim2.new(0, 8, 0, 8)
+SVCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SVCursor.BorderSizePixel = 0
+SVCursor.ZIndex = 104
+SVCursor.Parent = SVSquare
+addOutlines(SVCursor)
 
-		local lbl = Instance.new("TextLabel")
-		lbl.Size = UDim2.new(0, 12, 1, 0)
-		lbl.BackgroundTransparency = 1
-		lbl.Text = chName
-		lbl.TextColor3 = C.dim
-		lbl.TextSize = 12
-		lbl.Font = Enum.Font.Code
-		lbl.TextXAlignment = Enum.TextXAlignment.Left
-		lbl.ZIndex = 3
-		lbl.Parent = row
+-- Hue bar (vertical, right side)
+local HueBar = Instance.new("ImageLabel")
+HueBar.Size = UDim2.new(0, 16, 0, 120)
+HueBar.Position = UDim2.new(0, 168, 0, 26)
+HueBar.BorderSizePixel = 0
+HueBar.Image = "rbxassetid://698054456"
+HueBar.ZIndex = 101
+HueBar.Parent = ColorPickerPopup
+addOutlines(HueBar)
 
-		local track = Instance.new("Frame")
-		track.Size = UDim2.new(1, -48, 0, 6)
-		track.Position = UDim2.new(0, 16, 0.5, -3)
-		track.BackgroundColor3 = C.item
-		track.BorderSizePixel = 0
-		track.ZIndex = 3
-		track.Parent = row
-		addOutlines(track)
+-- Hue cursor
+local HueCursor = Instance.new("Frame")
+HueCursor.Size = UDim2.new(1, 2, 0, 3)
+HueCursor.Position = UDim2.new(0, -1, 0, 0)
+HueCursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+HueCursor.BorderSizePixel = 0
+HueCursor.ZIndex = 102
+HueCursor.Parent = HueBar
+addOutlines(HueCursor)
 
-		local fill = Instance.new("Frame")
-		fill.Size = UDim2.new(getValue() / 255, 0, 1, 0)
-		fill.BackgroundColor3 = C.accent
-		fill.BorderSizePixel = 0
-		fill.ZIndex = 4
-		fill.Parent = track
+-- Preview swatch bottom
+local CPPreview = Instance.new("Frame")
+CPPreview.Size = UDim2.new(0, 152, 0, 12)
+CPPreview.Position = UDim2.new(0, 8, 0, 152)
+CPPreview.BorderSizePixel = 0
+CPPreview.ZIndex = 101
+CPPreview.Parent = ColorPickerPopup
+addOutlines(CPPreview)
 
-		local valLbl = Instance.new("TextLabel")
-		valLbl.Size = UDim2.new(0, 28, 1, 0)
-		valLbl.Position = UDim2.new(1, -28, 0, 0)
-		valLbl.BackgroundTransparency = 1
-		valLbl.Text = tostring(math.floor(getValue()))
-		valLbl.TextColor3 = C.dim
-		valLbl.TextSize = 11
-		valLbl.Font = Enum.Font.Code
-		valLbl.TextXAlignment = Enum.TextXAlignment.Right
-		valLbl.ZIndex = 3
-		valLbl.Parent = row
+local currentOnChange = nil
+local cpH, cpS, cpV = 0.77, 1, 1
 
-		local dragging = false
-
-		local function updateFromInput(inputX)
-			local abs = track.AbsolutePosition.X
-			local w   = track.AbsoluteSize.X
-			local pct = math.clamp((inputX - abs) / w, 0, 1)
-			setValue(pct * 255)
-			fill.Size = UDim2.new(pct, 0, 1, 0)
-			valLbl.Text = tostring(math.floor(getValue()))
-			preview.BackgroundColor3 = Color3.fromRGB(r, g, b)
-			onChange(Color3.fromRGB(r, g, b))
-		end
-
-		track.InputBegan:Connect(function(inp)
-			if inp.UserInputType == Enum.UserInputType.MouseButton1
-				or inp.UserInputType == Enum.UserInputType.Touch then
-				dragging = true
-				updateFromInput(inp.Position.X)
-			end
-		end)
-		track.InputEnded:Connect(function(inp)
-			if inp.UserInputType == Enum.UserInputType.MouseButton1
-				or inp.UserInputType == Enum.UserInputType.Touch then
-				dragging = false
-			end
-		end)
-		UserInputService.InputChanged:Connect(function(inp)
-			if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement
-				or inp.UserInputType == Enum.UserInputType.Touch) then
-				updateFromInput(inp.Position.X)
-			end
-		end)
-	end
-
-	makeSliderRow("R", function() return r end, function(v) r = v end)
-	makeSliderRow("G", function() return g end, function(v) g = v end)
-	makeSliderRow("B", function() return b end, function(v) b = v end)
-
-	return wrapper
+local function cpUpdateVisuals()
+	SVSquare.BackgroundColor3 = Color3.fromHSV(cpH, 1, 1)
+	SVCursor.Position = UDim2.new(cpS, -4, 1 - cpV, -4)
+	HueCursor.Position = UDim2.new(0, -1, 1 - cpH, -1)
+	local col = Color3.fromHSV(cpH, cpS, cpV)
+	CPPreview.BackgroundColor3 = col
+	if currentOnChange then currentOnChange(col) end
 end
 
--- Sections
+local svDragging = false
+local hueDragging = false
+
+SVSquare.InputBegan:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1
+		or inp.UserInputType == Enum.UserInputType.Touch then
+		svDragging = true
+		local rel = inp.Position
+		local ax, ay = SVSquare.AbsolutePosition.X, SVSquare.AbsolutePosition.Y
+		local aw, ah = SVSquare.AbsoluteSize.X, SVSquare.AbsoluteSize.Y
+		cpS = math.clamp((rel.X - ax) / aw, 0, 1)
+		cpV = 1 - math.clamp((rel.Y - ay) / ah, 0, 1)
+		cpUpdateVisuals()
+	end
+end)
+
+SVSquare.InputEnded:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1
+		or inp.UserInputType == Enum.UserInputType.Touch then
+		svDragging = false
+	end
+end)
+
+HueBar.InputBegan:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1
+		or inp.UserInputType == Enum.UserInputType.Touch then
+		hueDragging = true
+		local ay = HueBar.AbsolutePosition.Y
+		local ah = HueBar.AbsoluteSize.Y
+		cpH = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+		cpUpdateVisuals()
+	end
+end)
+
+HueBar.InputEnded:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1
+		or inp.UserInputType == Enum.UserInputType.Touch then
+		hueDragging = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseMovement
+		or inp.UserInputType == Enum.UserInputType.Touch then
+		if svDragging then
+			local ax, ay = SVSquare.AbsolutePosition.X, SVSquare.AbsolutePosition.Y
+			local aw, ah = SVSquare.AbsoluteSize.X, SVSquare.AbsoluteSize.Y
+			cpS = math.clamp((inp.Position.X - ax) / aw, 0, 1)
+			cpV = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+			cpUpdateVisuals()
+		elseif hueDragging then
+			local ay = HueBar.AbsolutePosition.Y
+			local ah = HueBar.AbsoluteSize.Y
+			cpH = 1 - math.clamp((inp.Position.Y - ay) / ah, 0, 1)
+			cpUpdateVisuals()
+		end
+	end
+end)
+
+CPClose.MouseButton1Click:Connect(function()
+	ColorPickerPopup.Visible = false
+end)
+
+local function openColorPicker(label, currentColor, onChange)
+	currentOnChange = onChange
+	CPTitle.Text = label
+	cpH, cpS, cpV = Color3.toHSV(currentColor)
+	cpUpdateVisuals()
+	local mp = MainFrame.AbsolutePosition
+	local ms = MainFrame.AbsoluteSize
+	ColorPickerPopup.Position = UDim2.new(0, mp.X + ms.X + 6, 0, mp.Y)
+	ColorPickerPopup.Visible = true
+end
+
+local function makeColorRow(parent, labelText, getColor, onPick)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 20)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.ZIndex = 2
+	row.Parent = parent
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -50, 1, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = C.muted
+	lbl.TextSize = 14
+	lbl.Font = Enum.Font.Code
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 3
+	lbl.Parent = row
+
+	local swatch = Instance.new("TextButton")
+	swatch.Size = UDim2.new(0, 40, 0, 14)
+	swatch.Position = UDim2.new(1, -40, 0.5, -7)
+	swatch.BackgroundColor3 = getColor()
+	swatch.BorderSizePixel = 0
+	swatch.AutoButtonColor = false
+	swatch.Text = ""
+	swatch.ZIndex = 3
+	swatch.Parent = row
+	addOutlines(swatch)
+
+	swatch.MouseButton1Click:Connect(function()
+		openColorPicker(labelText, getColor(), function(col)
+			swatch.BackgroundColor3 = col
+			onPick(col)
+		end)
+	end)
+
+	swatch.MouseEnter:Connect(function() swatch.BorderSizePixel = 1 end)
+	swatch.MouseLeave:Connect(function() swatch.BorderSizePixel = 0 end)
+
+	return row
+end
+
 local CosmeticSection, CosmeticHolder = makeSection("Cosmetics", 70)
 
 local SkinBtn = Instance.new("TextButton")
@@ -555,17 +661,16 @@ local _, getBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
 local _, getNameESP = makeCheckbox(ESPHolder, "Name ESP")
 local _, getFillESP = makeCheckbox(ESPHolder, "Fill Box")
 
-makeColorPicker(ESPHolder, "Box Color", boxColor, function(col)
+makeColorRow(ESPHolder, "Box Color", function() return boxColor end, function(col)
 	boxColor = col
 	updateESPColors()
 end)
 
-makeColorPicker(ESPHolder, "Name Color", nameColor, function(col)
+makeColorRow(ESPHolder, "Name Color", function() return nameColor end, function(col)
 	nameColor = col
 	updateESPColors()
 end)
 
--- Resize main frame to fit scroll
 local MAX_HEIGHT = 260
 
 local function resizeAll()
@@ -597,6 +702,7 @@ HideBtn.MouseButton1Click:Connect(function()
 		resizeAll()
 	else
 		MainFrame.Size = UDim2.new(0, 300, 0, 34)
+		ColorPickerPopup.Visible = false
 	end
 end)
 
@@ -625,5 +731,6 @@ end)
 UserInputService.InputBegan:Connect(function(i)
 	if i.KeyCode == Enum.KeyCode.RightShift then
 		ScreenGui.Enabled = not ScreenGui.Enabled
+		ColorPickerPopup.Visible = false
 	end
 end)
