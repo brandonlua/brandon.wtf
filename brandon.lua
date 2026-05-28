@@ -67,7 +67,7 @@ local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, -40, 1, 0)
 TitleLabel.Position = UDim2.new(0, 7, 0, 0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "i skidded ts lol"
+TitleLabel.Text = "brandon.wtf"
 TitleLabel.TextColor3 = C.text
 TitleLabel.TextSize = 16
 TitleLabel.Font = Enum.Font.Code
@@ -183,7 +183,7 @@ local Watermark = Instance.new("TextLabel")
 Watermark.Size = UDim2.new(0, 160, 0, 18)
 Watermark.Position = UDim2.new(0, 8, 1, -20)
 Watermark.BackgroundTransparency = 1
-Watermark.Text = "brandon.wtf"
+Watermark.Text = "i skidded ts lol "
 Watermark.TextColor3 = C.dim
 Watermark.TextSize = 15
 Watermark.Font = Enum.Font.Code
@@ -221,7 +221,7 @@ SkinBtn.MouseButton1Click:Connect(function()
 	SkinBtn.TextColor3 = C.dim
 	pcall(function()
 		loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
-		SkinBtn.Text = "Unlock All Skins ✓"
+		SkinBtn.Text = "Unlocked"
 		SkinBtn.TextColor3 = C.accent
 	end)
 end)
