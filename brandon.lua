@@ -1,5 +1,7 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -9,11 +11,18 @@ local C = {
 	topbar  = Color3.fromRGB(24, 24, 24),
 	item    = Color3.fromRGB(38, 38, 38),
 	border  = Color3.fromRGB(60, 60, 60),
-	accent  = Color3.fromRGB(100, 170, 220),
+	accent  = Color3.fromRGB(130, 80, 200),
 	text    = Color3.fromRGB(255, 255, 255),
 	muted   = Color3.fromRGB(200, 200, 200),
 	dim     = Color3.fromRGB(130, 130, 130),
 }
+
+local espEnabled  = false
+local nameEnabled = false
+local fillEnabled = false
+local espObjects  = {}
+local boxColor    = Color3.fromRGB(130, 80, 200)
+local nameColor   = Color3.fromRGB(130, 80, 200)
 
 local function addOutlines(parent, borderClr)
 	local o1 = Instance.new("ImageLabel")
@@ -25,7 +34,6 @@ local function addOutlines(parent, borderClr)
 	o1.SliceCenter = Rect.new(2, 2, 62, 62)
 	o1.ZIndex = parent.ZIndex + 1
 	o1.Parent = parent
-
 	local o2 = Instance.new("ImageLabel")
 	o2.BackgroundTransparency = 1
 	o2.Position = UDim2.new(0, 1, 0, 1)
@@ -38,6 +46,169 @@ local function addOutlines(parent, borderClr)
 	o2.Parent = parent
 end
 
+local ESPGui = Instance.new("ScreenGui")
+ESPGui.Name = "ESPGui"
+ESPGui.ResetOnSpawn = false
+ESPGui.DisplayOrder = 999998
+ESPGui.IgnoreGuiInset = true
+ESPGui.Parent = playerGui
+
+local function createESPForPlayer(target)
+	if target == player then return end
+	if espObjects[target] then return end
+
+	local outerBlack = Instance.new("Frame")
+	outerBlack.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	outerBlack.BackgroundTransparency = 0.7
+	outerBlack.BorderSizePixel = 0
+	outerBlack.ZIndex = 8
+	outerBlack.Parent = ESPGui
+
+	local box = Instance.new("Frame")
+	box.BackgroundTransparency = 1
+	box.BorderSizePixel = 0
+	box.ZIndex = 9
+	box.Parent = ESPGui
+
+	local uiStroke = Instance.new("UIStroke")
+	uiStroke.Color = Color3.fromRGB(0, 0, 0)
+	uiStroke.Thickness = 1
+	uiStroke.Transparency = 0.7
+	uiStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	uiStroke.Parent = box
+
+	local accentBorder = Instance.new("Frame")
+	accentBorder.BackgroundTransparency = 1
+	accentBorder.BorderSizePixel = 0
+	accentBorder.ZIndex = 10
+	accentBorder.Parent = ESPGui
+	addOutlines(accentBorder, boxColor)
+	local ch = accentBorder:GetChildren()
+	if ch[2] then ch[2].ImageTransparency = 1 end
+
+	local fill = Instance.new("Frame")
+	fill.BackgroundColor3 = boxColor
+	fill.BackgroundTransparency = 0.75
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 7
+	fill.Parent = ESPGui
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.TextColor3 = nameColor
+	nameLabel.TextStrokeTransparency = 0.3
+	nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	nameLabel.TextSize = 13
+	nameLabel.Font = Enum.Font.Code
+	nameLabel.TextYAlignment = Enum.TextYAlignment.Bottom
+	nameLabel.ZIndex = 11
+	nameLabel.Parent = ESPGui
+
+	espObjects[target] = {
+		outerBlack   = outerBlack,
+		box          = box,
+		accentBorder = accentBorder,
+		fill         = fill,
+		nameLabel    = nameLabel,
+	}
+end
+
+local function removeESPForPlayer(target)
+	if espObjects[target] then
+		for _, v in pairs(espObjects[target]) do v:Destroy() end
+		espObjects[target] = nil
+	end
+end
+
+local function clearAllESP()
+	for target in pairs(espObjects) do removeESPForPlayer(target) end
+end
+
+local function initESP()
+	for _, p in ipairs(Players:GetPlayers()) do createESPForPlayer(p) end
+end
+
+local function updateESPColors()
+	for _, objs in pairs(espObjects) do
+		local borderImg = objs.accentBorder:GetChildren()
+		if borderImg[1] then borderImg[1].ImageColor3 = boxColor end
+		objs.fill.BackgroundColor3 = boxColor
+		objs.nameLabel.TextColor3  = nameColor
+	end
+end
+
+Players.PlayerAdded:Connect(function(p)
+	if espEnabled then createESPForPlayer(p) end
+end)
+Players.PlayerRemoving:Connect(removeESPForPlayer)
+
+local function getCharacterScreenBox(character)
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not rootPart or not humanoid then return nil end
+	local rootCF = rootPart.CFrame
+	local size = Vector3.new(4, humanoid.HipHeight * 2 + 2, 4)
+	local corners = {
+		rootCF * CFrame.new( size.X/2,  size.Y/2,  size.Z/2),
+		rootCF * CFrame.new(-size.X/2,  size.Y/2,  size.Z/2),
+		rootCF * CFrame.new( size.X/2, -size.Y/2,  size.Z/2),
+		rootCF * CFrame.new(-size.X/2, -size.Y/2,  size.Z/2),
+		rootCF * CFrame.new( size.X/2,  size.Y/2, -size.Z/2),
+		rootCF * CFrame.new(-size.X/2,  size.Y/2, -size.Z/2),
+		rootCF * CFrame.new( size.X/2, -size.Y/2, -size.Z/2),
+		rootCF * CFrame.new(-size.X/2, -size.Y/2, -size.Z/2),
+	}
+	local minX, minY = math.huge, math.huge
+	local maxX, maxY = -math.huge, -math.huge
+	for _, cf in ipairs(corners) do
+		local screenPos, onScreen = Camera:WorldToViewportPoint(cf.Position)
+		if not onScreen then return nil end
+		if screenPos.X < minX then minX = screenPos.X end
+		if screenPos.X > maxX then maxX = screenPos.X end
+		if screenPos.Y < minY then minY = screenPos.Y end
+		if screenPos.Y > maxY then maxY = screenPos.Y end
+	end
+	return minX, minY, maxX, maxY
+end
+
+RunService.RenderStepped:Connect(function()
+	for target, objs in pairs(espObjects) do
+		local character = target.Character
+		local visible = false
+		if character and espEnabled then
+			local minX, minY, maxX, maxY = getCharacterScreenBox(character)
+			if minX then
+				visible = true
+				local w = maxX - minX
+				local h = maxY - minY
+				objs.outerBlack.Visible  = true
+				objs.outerBlack.Position = UDim2.new(0, minX - 1, 0, minY - 1)
+				objs.outerBlack.Size     = UDim2.new(0, w + 2, 0, h + 2)
+				objs.box.Visible         = true
+				objs.box.Position        = UDim2.new(0, minX, 0, minY)
+				objs.box.Size            = UDim2.new(0, w, 0, h)
+				objs.accentBorder.Visible  = true
+				objs.accentBorder.Position = UDim2.new(0, minX, 0, minY)
+				objs.accentBorder.Size     = UDim2.new(0, w, 0, h)
+				objs.fill.Visible    = fillEnabled
+				objs.fill.Position   = UDim2.new(0, minX + 1, 0, minY + 1)
+				objs.fill.Size       = UDim2.new(0, w - 2, 0, h - 2)
+				objs.nameLabel.Visible   = nameEnabled
+				objs.nameLabel.Text      = target.DisplayName ~= "" and target.DisplayName or target.Name
+				objs.nameLabel.Position  = UDim2.new(0, minX, 0, minY - 16)
+				objs.nameLabel.Size      = UDim2.new(0, w, 0, 16)
+			end
+		end
+		if not visible then
+			objs.outerBlack.Visible   = false
+			objs.box.Visible          = false
+			objs.accentBorder.Visible = false
+			objs.fill.Visible         = false
+			objs.nameLabel.Visible    = false
+		end
+	end
+end)
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Brandon.wtf"
 ScreenGui.ResetOnSpawn = false
@@ -46,7 +217,7 @@ ScreenGui.Parent = playerGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 300, 0, 180)
+MainFrame.Size = UDim2.new(0, 300, 0, 34)
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
 MainFrame.BackgroundColor3 = C.bg
 MainFrame.BorderSizePixel = 0
@@ -87,7 +258,7 @@ HideBtn.Size = UDim2.new(0, 26, 0, 18)
 HideBtn.Position = UDim2.new(1, -30, 0.5, -9)
 HideBtn.BackgroundColor3 = C.item
 HideBtn.BorderSizePixel = 0
-HideBtn.Text = "—"
+HideBtn.Text = "+"
 HideBtn.TextColor3 = C.muted
 HideBtn.TextSize = 13
 HideBtn.Font = Enum.Font.Code
@@ -96,64 +267,276 @@ HideBtn.ZIndex = 2
 HideBtn.Parent = TopBar
 addOutlines(HideBtn)
 
+-- Scroll container
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Name = "ScrollFrame"
+ScrollFrame.Size = UDim2.new(1, -4, 0, 0)
+ScrollFrame.Position = UDim2.new(0, 2, 0, 32)
+ScrollFrame.BackgroundTransparency = 1
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 3
+ScrollFrame.ScrollBarImageColor3 = C.accent
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+ScrollFrame.ClipsDescendants = true
+ScrollFrame.Visible = false
+ScrollFrame.Parent = MainFrame
+
 local Container = Instance.new("Frame")
 Container.Name = "Container"
-Container.Size = UDim2.new(1, -16, 0, 0)
-Container.Position = UDim2.new(0, 8, 0, 36)
+Container.Size = UDim2.new(1, -12, 0, 0)
+Container.Position = UDim2.new(0, 6, 0, 6)
 Container.BackgroundTransparency = 1
 Container.BorderSizePixel = 0
-Container.ClipsDescendants = false
-Container.Parent = MainFrame
+Container.AutomaticSize = Enum.AutomaticSize.Y
+Container.Parent = ScrollFrame
 
 local ContainerLayout = Instance.new("UIListLayout")
 ContainerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 ContainerLayout.Padding = UDim.new(0, 8)
 ContainerLayout.Parent = Container
 
-local Section = Instance.new("Frame")
-Section.Name = "Section"
-Section.Size = UDim2.new(1, 0, 0, 24)
-Section.BackgroundColor3 = C.panel
-Section.BorderSizePixel = 0
-Section.ClipsDescendants = false
-Section.Parent = Container
-addOutlines(Section)
+local function makeSection(name, labelWidth)
+	local sec = Instance.new("Frame")
+	sec.BackgroundColor3 = C.panel
+	sec.BorderSizePixel = 0
+	sec.ClipsDescendants = false
+	sec.AutomaticSize = Enum.AutomaticSize.Y
+	sec.Size = UDim2.new(1, 0, 0, 0)
+	sec.Parent = Container
+	addOutlines(sec)
 
-local SectionTitleFrame = Instance.new("Frame")
-SectionTitleFrame.Size = UDim2.new(0, 70, 0, 8)
-SectionTitleFrame.Position = UDim2.new(0, 10, 0, 0)
-SectionTitleFrame.BackgroundColor3 = C.panel
-SectionTitleFrame.BorderSizePixel = 0
-SectionTitleFrame.ZIndex = 3
-SectionTitleFrame.Parent = Section
+	local stf = Instance.new("Frame")
+	stf.Size = UDim2.new(0, labelWidth or 50, 0, 8)
+	stf.Position = UDim2.new(0, 10, 0, 0)
+	stf.BackgroundColor3 = C.panel
+	stf.BorderSizePixel = 0
+	stf.ZIndex = 3
+	stf.Parent = sec
 
-local SectionTitle = Instance.new("TextLabel")
-SectionTitle.Size = UDim2.new(1, 0, 0, 14)
-SectionTitle.Position = UDim2.new(0, 0, 0, -3)
-SectionTitle.BackgroundTransparency = 1
-SectionTitle.Text = "Cosmetics"
-SectionTitle.TextColor3 = C.text
-SectionTitle.TextSize = 14
-SectionTitle.Font = Enum.Font.Code
-SectionTitle.ZIndex = 4
-SectionTitle.Parent = SectionTitleFrame
+	local st = Instance.new("TextLabel")
+	st.Size = UDim2.new(1, 0, 0, 14)
+	st.Position = UDim2.new(0, 0, 0, -3)
+	st.BackgroundTransparency = 1
+	st.Text = name
+	st.TextColor3 = C.text
+	st.TextSize = 14
+	st.Font = Enum.Font.Code
+	st.ZIndex = 4
+	st.Parent = stf
 
-local ItemHolder = Instance.new("Frame")
-ItemHolder.Name = "ItemHolder"
-ItemHolder.Size = UDim2.new(1, -16, 0, 0)
-ItemHolder.Position = UDim2.new(0, 8, 0, 14)
-ItemHolder.BackgroundTransparency = 1
-ItemHolder.BorderSizePixel = 0
-ItemHolder.ZIndex = 2
-ItemHolder.Parent = Section
+	local ih = Instance.new("Frame")
+	ih.Name = "ItemHolder"
+	ih.Size = UDim2.new(1, -16, 0, 0)
+	ih.Position = UDim2.new(0, 8, 0, 14)
+	ih.BackgroundTransparency = 1
+	ih.BorderSizePixel = 0
+	ih.AutomaticSize = Enum.AutomaticSize.Y
+	ih.ZIndex = 2
+	ih.Parent = sec
 
-local ItemLayout = Instance.new("UIListLayout")
-ItemLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ItemLayout.Padding = UDim.new(0, 5)
-ItemLayout.Parent = ItemHolder
+	local il = Instance.new("UIListLayout")
+	il.SortOrder = Enum.SortOrder.LayoutOrder
+	il.Padding = UDim.new(0, 5)
+	il.Parent = ih
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingBottom = UDim.new(0, 10)
+	pad.Parent = ih
+
+	return sec, ih, il
+end
+
+local function makeCheckbox(parent, labelText)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 20)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.ZIndex = 2
+	row.Parent = parent
+
+	local box = Instance.new("TextButton")
+	box.Size = UDim2.new(0, 14, 0, 14)
+	box.Position = UDim2.new(0, 0, 0.5, -7)
+	box.BackgroundColor3 = C.item
+	box.BorderSizePixel = 0
+	box.AutoButtonColor = false
+	box.Text = ""
+	box.ZIndex = 3
+	box.Parent = row
+	addOutlines(box)
+
+	local boxFill = Instance.new("Frame")
+	boxFill.Size = UDim2.new(1, -4, 1, -4)
+	boxFill.Position = UDim2.new(0, 2, 0, 2)
+	boxFill.BackgroundColor3 = C.accent
+	boxFill.BorderSizePixel = 0
+	boxFill.Visible = false
+	boxFill.ZIndex = 4
+	boxFill.Parent = box
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, -22, 1, 0)
+	lbl.Position = UDim2.new(0, 22, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = C.muted
+	lbl.TextSize = 14
+	lbl.Font = Enum.Font.Code
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextYAlignment = Enum.TextYAlignment.Center
+	lbl.ZIndex = 3
+	lbl.Parent = row
+
+	local state = false
+	local function setState(val)
+		state = val
+		boxFill.Visible = state
+		lbl.TextColor3 = state and C.text or C.muted
+	end
+
+	box.MouseButton1Click:Connect(function() setState(not state) end)
+	box.MouseEnter:Connect(function() box.BorderSizePixel = 1 end)
+	box.MouseLeave:Connect(function() box.BorderSizePixel = 0 end)
+
+	return row, function() return state end, setState
+end
+
+-- RGB sliders for color picking
+local function makeColorPicker(parent, labelText, defaultColor, onChange)
+	local wrapper = Instance.new("Frame")
+	wrapper.Size = UDim2.new(1, 0, 0, 0)
+	wrapper.BackgroundTransparency = 1
+	wrapper.BorderSizePixel = 0
+	wrapper.AutomaticSize = Enum.AutomaticSize.Y
+	wrapper.ZIndex = 2
+	wrapper.Parent = parent
+
+	local wLayout = Instance.new("UIListLayout")
+	wLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	wLayout.Padding = UDim.new(0, 4)
+	wLayout.Parent = wrapper
+
+	local headerRow = Instance.new("Frame")
+	headerRow.Size = UDim2.new(1, 0, 0, 18)
+	headerRow.BackgroundTransparency = 1
+	headerRow.ZIndex = 2
+	headerRow.Parent = wrapper
+
+	local headerLbl = Instance.new("TextLabel")
+	headerLbl.Size = UDim2.new(0.7, 0, 1, 0)
+	headerLbl.BackgroundTransparency = 1
+	headerLbl.Text = labelText
+	headerLbl.TextColor3 = C.muted
+	headerLbl.TextSize = 13
+	headerLbl.Font = Enum.Font.Code
+	headerLbl.TextXAlignment = Enum.TextXAlignment.Left
+	headerLbl.ZIndex = 3
+	headerLbl.Parent = headerRow
+
+	local preview = Instance.new("Frame")
+	preview.Size = UDim2.new(0, 40, 0, 14)
+	preview.Position = UDim2.new(1, -40, 0.5, -7)
+	preview.BackgroundColor3 = defaultColor
+	preview.BorderSizePixel = 0
+	preview.ZIndex = 3
+	preview.Parent = headerRow
+	addOutlines(preview)
+
+	local r, g, b = defaultColor.R * 255, defaultColor.G * 255, defaultColor.B * 255
+
+	local function makeSliderRow(chName, getValue, setValue)
+		local row = Instance.new("Frame")
+		row.Size = UDim2.new(1, 0, 0, 16)
+		row.BackgroundTransparency = 1
+		row.ZIndex = 2
+		row.Parent = wrapper
+
+		local lbl = Instance.new("TextLabel")
+		lbl.Size = UDim2.new(0, 12, 1, 0)
+		lbl.BackgroundTransparency = 1
+		lbl.Text = chName
+		lbl.TextColor3 = C.dim
+		lbl.TextSize = 12
+		lbl.Font = Enum.Font.Code
+		lbl.TextXAlignment = Enum.TextXAlignment.Left
+		lbl.ZIndex = 3
+		lbl.Parent = row
+
+		local track = Instance.new("Frame")
+		track.Size = UDim2.new(1, -48, 0, 6)
+		track.Position = UDim2.new(0, 16, 0.5, -3)
+		track.BackgroundColor3 = C.item
+		track.BorderSizePixel = 0
+		track.ZIndex = 3
+		track.Parent = row
+		addOutlines(track)
+
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.new(getValue() / 255, 0, 1, 0)
+		fill.BackgroundColor3 = C.accent
+		fill.BorderSizePixel = 0
+		fill.ZIndex = 4
+		fill.Parent = track
+
+		local valLbl = Instance.new("TextLabel")
+		valLbl.Size = UDim2.new(0, 28, 1, 0)
+		valLbl.Position = UDim2.new(1, -28, 0, 0)
+		valLbl.BackgroundTransparency = 1
+		valLbl.Text = tostring(math.floor(getValue()))
+		valLbl.TextColor3 = C.dim
+		valLbl.TextSize = 11
+		valLbl.Font = Enum.Font.Code
+		valLbl.TextXAlignment = Enum.TextXAlignment.Right
+		valLbl.ZIndex = 3
+		valLbl.Parent = row
+
+		local dragging = false
+
+		local function updateFromInput(inputX)
+			local abs = track.AbsolutePosition.X
+			local w   = track.AbsoluteSize.X
+			local pct = math.clamp((inputX - abs) / w, 0, 1)
+			setValue(pct * 255)
+			fill.Size = UDim2.new(pct, 0, 1, 0)
+			valLbl.Text = tostring(math.floor(getValue()))
+			preview.BackgroundColor3 = Color3.fromRGB(r, g, b)
+			onChange(Color3.fromRGB(r, g, b))
+		end
+
+		track.InputBegan:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1
+				or inp.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				updateFromInput(inp.Position.X)
+			end
+		end)
+		track.InputEnded:Connect(function(inp)
+			if inp.UserInputType == Enum.UserInputType.MouseButton1
+				or inp.UserInputType == Enum.UserInputType.Touch then
+				dragging = false
+			end
+		end)
+		UserInputService.InputChanged:Connect(function(inp)
+			if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement
+				or inp.UserInputType == Enum.UserInputType.Touch) then
+				updateFromInput(inp.Position.X)
+			end
+		end)
+	end
+
+	makeSliderRow("R", function() return r end, function(v) r = v end)
+	makeSliderRow("G", function() return g end, function(v) g = v end)
+	makeSliderRow("B", function() return b end, function(v) b = v end)
+
+	return wrapper
+end
+
+-- Sections
+local CosmeticSection, CosmeticHolder = makeSection("Cosmetics", 70)
 
 local SkinBtn = Instance.new("TextButton")
-SkinBtn.Name = "SkinBtn"
 SkinBtn.Size = UDim2.new(1, 0, 0, 20)
 SkinBtn.BackgroundColor3 = C.item
 SkinBtn.BorderSizePixel = 0
@@ -163,32 +546,41 @@ SkinBtn.TextColor3 = C.text
 SkinBtn.TextSize = 14
 SkinBtn.Font = Enum.Font.Code
 SkinBtn.ZIndex = 2
-SkinBtn.Parent = ItemHolder
+SkinBtn.Parent = CosmeticHolder
 addOutlines(SkinBtn)
 
+local ESPSection, ESPHolder = makeSection("ESP", 36)
+
+local _, getBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
+local _, getNameESP = makeCheckbox(ESPHolder, "Name ESP")
+local _, getFillESP = makeCheckbox(ESPHolder, "Fill Box")
+
+makeColorPicker(ESPHolder, "Box Color", boxColor, function(col)
+	boxColor = col
+	updateESPColors()
+end)
+
+makeColorPicker(ESPHolder, "Name Color", nameColor, function(col)
+	nameColor = col
+	updateESPColors()
+end)
+
+-- Resize main frame to fit scroll
+local MAX_HEIGHT = 260
+
 local function resizeAll()
-	local ih = ItemLayout.AbsoluteContentSize.Y
-	ItemHolder.Size = UDim2.new(1, -16, 0, ih)
-	Section.Size = UDim2.new(1, 0, 0, ih + 24)
-	local ch = ContainerLayout.AbsoluteContentSize.Y
-	Container.Size = UDim2.new(1, -16, 0, ch)
-	MainFrame.Size = UDim2.new(0, 300, 0, ch + 52)
+	local canvasH = Container.AbsoluteSize.Y + 14
+	local frameH  = math.min(canvasH, MAX_HEIGHT) + 34
+	ScrollFrame.Size = UDim2.new(1, -4, 0, frameH - 34)
+	MainFrame.Size   = UDim2.new(0, 300, 0, frameH)
 end
 
-ItemLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resizeAll)
 ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resizeAll)
-resizeAll()
 
-local Watermark = Instance.new("TextLabel")
-Watermark.Size = UDim2.new(0, 160, 0, 18)
-Watermark.Position = UDim2.new(0, 8, 1, -20)
-Watermark.BackgroundTransparency = 1
-Watermark.Text = "i skidded ts lol "
-Watermark.TextColor3 = C.dim
-Watermark.TextSize = 15
-Watermark.Font = Enum.Font.Code
-Watermark.TextXAlignment = Enum.TextXAlignment.Left
-Watermark.Parent = MainFrame
+coroutine.wrap(function()
+	task.wait()
+	resizeAll()
+end)()
 
 coroutine.wrap(function()
 	while task.wait() do
@@ -196,16 +588,13 @@ coroutine.wrap(function()
 	end
 end)()
 
-local contentVisible = true
-
+local contentVisible = false
 HideBtn.MouseButton1Click:Connect(function()
 	contentVisible = not contentVisible
-	Container.Visible = contentVisible
-	Watermark.Visible = contentVisible
+	ScrollFrame.Visible = contentVisible
 	HideBtn.Text = contentVisible and "—" or "+"
 	if contentVisible then
 		resizeAll()
-		MainFrame.Size = UDim2.new(0, 300, 0, ContainerLayout.AbsoluteContentSize.Y + 52)
 	else
 		MainFrame.Size = UDim2.new(0, 300, 0, 34)
 	end
@@ -215,6 +604,13 @@ HideBtn.MouseEnter:Connect(function() HideBtn.BorderSizePixel = 1 end)
 HideBtn.MouseLeave:Connect(function() HideBtn.BorderSizePixel = 0 end)
 SkinBtn.MouseEnter:Connect(function() SkinBtn.BorderSizePixel = 1 end)
 SkinBtn.MouseLeave:Connect(function() SkinBtn.BorderSizePixel = 0 end)
+
+RunService.Heartbeat:Connect(function()
+	espEnabled  = getBoxESP()
+	nameEnabled = getNameESP()
+	fillEnabled = getFillESP()
+	if espEnabled then initESP() else clearAllESP() end
+end)
 
 SkinBtn.MouseButton1Click:Connect(function()
 	SkinBtn.Text = "Loading..."
