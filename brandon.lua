@@ -17,12 +17,17 @@ local C = {
 	dim     = Color3.fromRGB(130, 130, 130),
 }
 
-local espEnabled  = false
-local nameEnabled = false
-local fillEnabled = false
-local espObjects  = {}
-local boxColor    = Color3.fromRGB(130, 80, 200)
-local nameColor   = Color3.fromRGB(130, 80, 200)
+local espEnabled    = false
+local nameEnabled   = false
+local fillEnabled   = false
+local espObjects    = {}
+local boxColor      = Color3.fromRGB(130, 80, 200)
+local nameColor     = Color3.fromRGB(130, 80, 200)
+
+local triggerbotEnabled = false
+local triggerReactionTime = 0.08
+local triggerReleaseTime  = 0.05
+local triggerFiring = false
 
 local function addOutlines(parent, borderClr)
 	local o1 = Instance.new("ImageLabel")
@@ -34,7 +39,7 @@ local function addOutlines(parent, borderClr)
 	o1.SliceCenter = Rect.new(2, 2, 62, 62)
 	o1.ZIndex = parent.ZIndex + 1
 	o1.Parent = parent
-	
+
 	local o2 = Instance.new("ImageLabel")
 	o2.BackgroundTransparency = 1
 	o2.Position = UDim2.new(0, 1, 0, 1)
@@ -210,6 +215,45 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+local function isLookingAtPlayer()
+	local viewportCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+	for _, target in ipairs(Players:GetPlayers()) do
+		if target == player then continue end
+		local character = target.Character
+		if not character then continue end
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		local hum = character:FindFirstChildOfClass("Humanoid")
+		if not hrp or not hum or hum.Health <= 0 then continue end
+		local minX, minY, maxX, maxY = getCharacterScreenBox(character)
+		if minX then
+			if viewportCenter.X >= minX and viewportCenter.X <= maxX and
+				viewportCenter.Y >= minY and viewportCenter.Y <= maxY then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+coroutine.wrap(function()
+	while true do
+		task.wait(0.05)
+		if triggerbotEnabled and not triggerFiring then
+			if isLookingAtPlayer() then
+				triggerFiring = true
+				task.wait(triggerReactionTime)
+				if triggerbotEnabled and isLookingAtPlayer() then
+					local vt = fireclickdetector or mouse1press
+					pcall(function() mouse1press() end)
+					task.wait(triggerReleaseTime)
+					pcall(function() mouse1release() end)
+				end
+				triggerFiring = false
+			end
+		end
+	end
+end)()
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Brandon.wtf"
 ScreenGui.ResetOnSpawn = false
@@ -268,10 +312,30 @@ HideBtn.ZIndex = 2
 HideBtn.Parent = TopBar
 addOutlines(HideBtn)
 
+local TabBar = Instance.new("Frame")
+TabBar.Name = "TabBar"
+TabBar.Size = UDim2.new(1, -4, 0, 26)
+TabBar.Position = UDim2.new(0, 2, 0, 32)
+TabBar.BackgroundColor3 = C.topbar
+TabBar.BorderSizePixel = 0
+TabBar.Visible = false
+TabBar.Parent = MainFrame
+
+local TabBarLayout = Instance.new("UIListLayout")
+TabBarLayout.FillDirection = Enum.FillDirection.Horizontal
+TabBarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabBarLayout.Padding = UDim.new(0, 2)
+TabBarLayout.Parent = TabBar
+
+local TabBarPad = Instance.new("UIPadding")
+TabBarPad.PaddingLeft = UDim.new(0, 4)
+TabBarPad.PaddingTop = UDim.new(0, 4)
+TabBarPad.Parent = TabBar
+
 local ScrollFrame = Instance.new("ScrollingFrame")
 ScrollFrame.Name = "ScrollFrame"
 ScrollFrame.Size = UDim2.new(1, -4, 0, 0)
-ScrollFrame.Position = UDim2.new(0, 2, 0, 32)
+ScrollFrame.Position = UDim2.new(0, 2, 0, 60)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.BorderSizePixel = 0
 ScrollFrame.ScrollBarThickness = 3
@@ -283,28 +347,83 @@ ScrollFrame.ClipsDescendants = true
 ScrollFrame.Visible = false
 ScrollFrame.Parent = MainFrame
 
-local Container = Instance.new("Frame")
-Container.Name = "Container"
-Container.Size = UDim2.new(1, -12, 0, 0)
-Container.Position = UDim2.new(0, 6, 0, 6)
-Container.BackgroundTransparency = 1
-Container.BorderSizePixel = 0
-Container.AutomaticSize = Enum.AutomaticSize.Y
-Container.Parent = ScrollFrame
+local tabs = {}
+local activeTab = nil
 
-local ContainerLayout = Instance.new("UIListLayout")
-ContainerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ContainerLayout.Padding = UDim.new(0, 8)
-ContainerLayout.Parent = Container
+local function makeTabPage()
+	local page = Instance.new("Frame")
+	page.Name = "TabPage"
+	page.Size = UDim2.new(1, -12, 0, 0)
+	page.Position = UDim2.new(0, 6, 0, 6)
+	page.BackgroundTransparency = 1
+	page.BorderSizePixel = 0
+	page.AutomaticSize = Enum.AutomaticSize.Y
+	page.Visible = false
+	page.Parent = ScrollFrame
 
-local function makeSection(name, labelWidth)
+	local layout = Instance.new("UIListLayout")
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = page
+
+	return page
+end
+
+local function makeTabButton(name, page, order)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(0, 74, 0, 18)
+	btn.BackgroundColor3 = C.item
+	btn.BorderSizePixel = 0
+	btn.Text = name
+	btn.TextColor3 = C.dim
+	btn.TextSize = 12
+	btn.Font = Enum.Font.Code
+	btn.AutoButtonColor = false
+	btn.LayoutOrder = order
+	btn.ZIndex = 2
+	btn.Parent = TabBar
+	addOutlines(btn)
+
+	tabs[name] = { btn = btn, page = page }
+
+	btn.MouseButton1Click:Connect(function()
+		for tname, tdata in pairs(tabs) do
+			tdata.page.Visible = false
+			tdata.btn.TextColor3 = C.dim
+			tdata.btn.BackgroundColor3 = C.item
+		end
+		page.Visible = true
+		btn.TextColor3 = C.text
+		btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+		activeTab = name
+	end)
+
+	btn.MouseEnter:Connect(function()
+		if activeTab ~= name then btn.TextColor3 = C.muted end
+	end)
+	btn.MouseLeave:Connect(function()
+		if activeTab ~= name then btn.TextColor3 = C.dim end
+	end)
+
+	return btn
+end
+
+local CombatPage = makeTabPage()
+local VisualPage = makeTabPage()
+local MiscPage   = makeTabPage()
+
+makeTabButton("Combat",  CombatPage, 1)
+makeTabButton("Visuals", VisualPage, 2)
+makeTabButton("Misc",    MiscPage,   3)
+
+local function makeSection(parentPage, name, labelWidth)
 	local sec = Instance.new("Frame")
 	sec.BackgroundColor3 = C.panel
 	sec.BorderSizePixel = 0
 	sec.ClipsDescendants = false
 	sec.AutomaticSize = Enum.AutomaticSize.Y
 	sec.Size = UDim2.new(1, 0, 0, 0)
-	sec.Parent = Container
+	sec.Parent = parentPage
 	addOutlines(sec)
 
 	local stf = Instance.new("Frame")
@@ -403,7 +522,96 @@ local function makeCheckbox(parent, labelText)
 	return row, function() return state end, setState
 end
 
--- FIXED COLOR PICKER
+local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimals, onChanged)
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, 0, 0, 36)
+	row.BackgroundTransparency = 1
+	row.BorderSizePixel = 0
+	row.ZIndex = 2
+	row.Parent = parent
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 0, 14)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = C.muted
+	lbl.TextSize = 13
+	lbl.Font = Enum.Font.Code
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 3
+	lbl.Parent = row
+
+	local valLabel = Instance.new("TextLabel")
+	valLabel.Size = UDim2.new(1, 0, 0, 14)
+	valLabel.BackgroundTransparency = 1
+	valLabel.TextColor3 = C.accent
+	valLabel.TextSize = 13
+	valLabel.Font = Enum.Font.Code
+	valLabel.TextXAlignment = Enum.TextXAlignment.Right
+	valLabel.ZIndex = 3
+	valLabel.Parent = row
+
+	local track = Instance.new("Frame")
+	track.Size = UDim2.new(1, 0, 0, 6)
+	track.Position = UDim2.new(0, 0, 0, 20)
+	track.BackgroundColor3 = C.item
+	track.BorderSizePixel = 0
+	track.ZIndex = 3
+	track.Parent = row
+	addOutlines(track)
+
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BackgroundColor3 = C.accent
+	fill.BorderSizePixel = 0
+	fill.ZIndex = 4
+	fill.Parent = track
+
+	local currentVal = defaultVal
+	local dragging = false
+
+	local fmt = "%." .. (decimals or 2) .. "f"
+
+	local function setValue(val)
+		currentVal = math.clamp(val, minVal, maxVal)
+		local t = (currentVal - minVal) / (maxVal - minVal)
+		fill.Size = UDim2.new(t, 0, 1, 0)
+		valLabel.Text = string.format(fmt .. "s", currentVal)
+		onChanged(currentVal)
+	end
+
+	setValue(defaultVal)
+
+	track.InputBegan:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			local absPos = track.AbsolutePosition
+			local absSize = track.AbsoluteSize
+			local mouse = UserInputService:GetMouseLocation()
+			local t = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+			setValue(minVal + t * (maxVal - minVal))
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(inp)
+		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+			local absPos = track.AbsolutePosition
+			local absSize = track.AbsoluteSize
+			local mouse = UserInputService:GetMouseLocation()
+			local t = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+			setValue(minVal + t * (maxVal - minVal))
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	return row
+end
+
 local function makeColorPicker(parent, labelText, defaultColor, onChange)
 	local h, s, v = defaultColor:ToHSV()
 	local color = defaultColor
@@ -443,149 +651,180 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 	preview.Parent = header
 	addOutlines(preview)
 
-	-- SV Box
 	local svFrame = Instance.new("Frame")
 	svFrame.Size = UDim2.new(1, 0, 0, 100)
 	svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 	svFrame.BorderSizePixel = 0
-	svFrame.ClipsDescendants = true
+	svFrame.ClipsDescendants = false
+	svFrame.ZIndex = 2
 	svFrame.Parent = wrapper
 	addOutlines(svFrame)
 
 	local satGradient = Instance.new("UIGradient")
-	satGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.new(1,1,1))}
-	satGradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)}
+	satGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.new(1,1,1)),
+		ColorSequenceKeypoint.new(1, Color3.new(1,1,1))
+	}
+	satGradient.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(1, 1)
+	}
 	satGradient.Parent = svFrame
 
 	local valGradient = Instance.new("UIGradient")
-	valGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.new(0,0,0)), ColorSequenceKeypoint.new(1, Color3.new(0,0,0))}
-	valGradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)}
+	valGradient.Color = ColorSequence.new{
+		ColorSequenceKeypoint.new(0, Color3.new(0,0,0)),
+		ColorSequenceKeypoint.new(1, Color3.new(0,0,0))
+	}
+	valGradient.Transparency = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(1, 0)
+	}
 	valGradient.Rotation = 90
 	valGradient.Parent = svFrame
 
 	local svCursor = Instance.new("Frame")
-	svCursor.Size = UDim2.new(0, 8, 0, 8)
-	svCursor.BackgroundTransparency = 1
-	svCursor.BorderSizePixel = 2
-	svCursor.BorderColor3 = Color3.new(1,1,1)
-	svCursor.ZIndex = 5
+	svCursor.Size = UDim2.new(0, 7, 0, 7)
+	svCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+	svCursor.ZIndex = 10
 	svCursor.Parent = svFrame
 
-	-- Hue Slider
+	local svStroke = Instance.new("UIStroke")
+	svStroke.Color = Color3.new(0, 0, 0)
+	svStroke.Thickness = 1.5
+	svStroke.Parent = svCursor
+
+	local svCorner = Instance.new("UICorner")
+	svCorner.CornerRadius = UDim.new(1, 0)
+	svCorner.Parent = svCursor
+
 	local hueFrame = Instance.new("Frame")
 	hueFrame.Size = UDim2.new(1, 0, 0, 12)
 	hueFrame.BackgroundColor3 = Color3.fromRGB(255,255,255)
 	hueFrame.BorderSizePixel = 0
+	hueFrame.ZIndex = 2
 	hueFrame.Parent = wrapper
 	addOutlines(hueFrame)
 
 	local hueGradient = Instance.new("UIGradient")
 	hueGradient.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromHSV(0,1,1)),
-		ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17,1,1)),
-		ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33,1,1)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5,1,1)),
-		ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67,1,1)),
-		ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83,1,1)),
-		ColorSequenceKeypoint.new(1, Color3.fromHSV(1,1,1))
+		ColorSequenceKeypoint.new(0,    Color3.fromHSV(0,    1, 1)),
+		ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)),
+		ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
+		ColorSequenceKeypoint.new(0.5,  Color3.fromHSV(0.5,  1, 1)),
+		ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
+		ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
+		ColorSequenceKeypoint.new(1,    Color3.fromHSV(1,    1, 1))
 	}
 	hueGradient.Parent = hueFrame
 
 	local hueCursor = Instance.new("Frame")
-	hueCursor.Size = UDim2.new(0, 4, 1, 0)
-	hueCursor.BackgroundColor3 = Color3.new(1,1,1)
-	hueCursor.BorderSizePixel = 1
-	hueCursor.BorderColor3 = Color3.new(0,0,0)
-	hueCursor.ZIndex = 5
+	hueCursor.Size = UDim2.new(0, 5, 1, 4)
+	hueCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+	hueCursor.ZIndex = 10
 	hueCursor.Parent = hueFrame
 
-	local function updateSV()
-		svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+	local hueStroke = Instance.new("UIStroke")
+	hueStroke.Color = Color3.new(0, 0, 0)
+	hueStroke.Thickness = 1.5
+	hueStroke.Parent = hueCursor
+
+	local function updateColor()
 		color = Color3.fromHSV(h, s, v)
+		svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 		preview.BackgroundColor3 = color
 		onChange(color)
 	end
 
-	local function updatePositions()
-		svCursor.Position = UDim2.new(math.clamp(s, 0, 1) - 0.04, 0, 1 - math.clamp(v, 0, 1) - 0.04, 0)
-		hueCursor.Position = UDim2.new(math.clamp(h, 0, 1) - 0.02, 0, 0, 0)
+	local function updateCursorPositions()
+		local svSize = svFrame.AbsoluteSize
+		if svSize.X == 0 then return end
+		local half = 3
+		local px = math.clamp(s * svSize.X - half, 0, svSize.X - (half * 2))
+		local py = math.clamp((1 - v) * svSize.Y - half, 0, svSize.Y - (half * 2))
+		svCursor.Position = UDim2.new(0, px, 0, py)
+		local hueSize = hueFrame.AbsoluteSize
+		if hueSize.X == 0 then return end
+		local hx = math.clamp(h * hueSize.X - 2, 0, hueSize.X - 5)
+		hueCursor.Position = UDim2.new(0, hx, 0, -2)
 	end
 
-	local svDragging, hueDragging = false, false
+	local svDragging = false
+	local hueDragging = false
 
 	svFrame.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
 			svDragging = true
-			local mouse = UserInputService:GetMouseLocation()
 			local absPos = svFrame.AbsolutePosition
 			local absSize = svFrame.AbsoluteSize
+			local mouse = UserInputService:GetMouseLocation()
 			s = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
 			v = 1 - math.clamp((mouse.Y - absPos.Y) / absSize.Y, 0, 1)
-			updateSV()
-			updatePositions()
+			updateColor()
+			updateCursorPositions()
 		end
 	end)
 
 	hueFrame.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
 			hueDragging = true
-			local mouse = UserInputService:GetMouseLocation()
 			local absPos = hueFrame.AbsolutePosition
 			local absSize = hueFrame.AbsoluteSize
+			local mouse = UserInputService:GetMouseLocation()
 			h = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
-			updateSV()
-			updatePositions()
+			updateColor()
+			updateCursorPositions()
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseMovement then
+		if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
 			local mouse = UserInputService:GetMouseLocation()
 			if svDragging then
 				local absPos = svFrame.AbsolutePosition
 				local absSize = svFrame.AbsoluteSize
 				s = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
 				v = 1 - math.clamp((mouse.Y - absPos.Y) / absSize.Y, 0, 1)
-				updateSV()
-				updatePositions()
+				updateColor()
+				updateCursorPositions()
 			elseif hueDragging then
 				local absPos = hueFrame.AbsolutePosition
 				local absSize = hueFrame.AbsoluteSize
 				h = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
-				updateSV()
-				updatePositions()
+				updateColor()
+				updateCursorPositions()
 			end
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
 			svDragging = false
 			hueDragging = false
 		end
 	end)
 
-	updateSV()
-	updatePositions()
+	task.defer(function()
+		updateColor()
+		updateCursorPositions()
+	end)
+
 	return wrapper
 end
 
-local _, CosmeticHolder = makeSection("Cosmetics", 70)
+local _, CombatHolder = makeSection(CombatPage, "Triggerbot", 72)
 
-local SkinBtn = Instance.new("TextButton")
-SkinBtn.Size = UDim2.new(1, 0, 0, 20)
-SkinBtn.BackgroundColor3 = C.item
-SkinBtn.BorderSizePixel = 0
-SkinBtn.AutoButtonColor = false
-SkinBtn.Text = "Unlock All Skins"
-SkinBtn.TextColor3 = C.text
-SkinBtn.TextSize = 14
-SkinBtn.Font = Enum.Font.Code
-SkinBtn.ZIndex = 2
-SkinBtn.Parent = CosmeticHolder
-addOutlines(SkinBtn)
+local _, getTrigger, setTrigger = makeCheckbox(CombatHolder, "Triggerbot")
 
-local _, ESPHolder = makeSection("ESP", 36)
+makeSlider(CombatHolder, "Reaction Time", 0.01, 0.5, triggerReactionTime, 2, function(val)
+	triggerReactionTime = val
+end)
+
+makeSlider(CombatHolder, "Release Time", 0.01, 0.3, triggerReleaseTime, 2, function(val)
+	triggerReleaseTime = val
+end)
+
+local _, ESPHolder = makeSection(VisualPage, "ESP", 36)
 
 local _, getBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
 local _, getNameESP = makeCheckbox(ESPHolder, "Name ESP")
@@ -601,34 +840,59 @@ makeColorPicker(ESPHolder, "Name Color", nameColor, function(col)
 	updateESPColors()
 end)
 
+local _, MiscHolder = makeSection(MiscPage, "Cosmetics", 70)
+
+local SkinBtn = Instance.new("TextButton")
+SkinBtn.Size = UDim2.new(1, 0, 0, 20)
+SkinBtn.BackgroundColor3 = C.item
+SkinBtn.BorderSizePixel = 0
+SkinBtn.AutoButtonColor = false
+SkinBtn.Text = "Unlock All Skins"
+SkinBtn.TextColor3 = C.text
+SkinBtn.TextSize = 14
+SkinBtn.Font = Enum.Font.Code
+SkinBtn.ZIndex = 2
+SkinBtn.Parent = MiscHolder
+addOutlines(SkinBtn)
+
 local MAX_HEIGHT = 340
 
 local function resizeAll()
-	local canvasH = Container.AbsoluteSize.Y + 14
-	local frameH  = math.min(canvasH, MAX_HEIGHT) + 34
-	ScrollFrame.Size = UDim2.new(1, -4, 0, frameH - 34)
+	local totalH = 0
+	for _, tdata in pairs(tabs) do
+		if tdata.page.Visible then
+			totalH = tdata.page.AbsoluteSize.Y + 14
+			break
+		end
+	end
+	local frameH = math.min(totalH, MAX_HEIGHT) + 60
+	ScrollFrame.Size = UDim2.new(1, -4, 0, frameH - 60)
 	MainFrame.Size   = UDim2.new(0, 300, 0, frameH)
 end
 
-ContainerLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(resizeAll)
-
-coroutine.wrap(function()
-	task.wait()
-	resizeAll()
-end)()
-
-coroutine.wrap(function()
-	while task.wait() do
-		AccentLine.BackgroundColor3 = C.accent
+RunService.Heartbeat:Connect(function()
+	if ScrollFrame.Visible then
+		resizeAll()
 	end
-end)()
+end)
 
 local contentVisible = false
 HideBtn.MouseButton1Click:Connect(function()
 	contentVisible = not contentVisible
 	ScrollFrame.Visible = contentVisible
+	TabBar.Visible = contentVisible
 	HideBtn.Text = contentVisible and "—" or "+"
+
 	if contentVisible then
+		if activeTab == nil then
+			for tname, tdata in pairs(tabs) do
+				tdata.page.Visible = (tname == "Combat")
+				tdata.btn.TextColor3 = (tname == "Combat") and C.text or C.dim
+				tdata.btn.BackgroundColor3 = (tname == "Combat") and Color3.fromRGB(50,50,50) or C.item
+			end
+			activeTab = "Combat"
+		end
+		task.wait()
 		resizeAll()
 	else
 		MainFrame.Size = UDim2.new(0, 300, 0, 34)
@@ -641,9 +905,10 @@ SkinBtn.MouseEnter:Connect(function() SkinBtn.BorderSizePixel = 1 end)
 SkinBtn.MouseLeave:Connect(function() SkinBtn.BorderSizePixel = 0 end)
 
 RunService.Heartbeat:Connect(function()
-	espEnabled  = getBoxESP()
-	nameEnabled = getNameESP()
-	fillEnabled = getFillESP()
+	espEnabled       = getBoxESP()
+	nameEnabled      = getNameESP()
+	fillEnabled      = getFillESP()
+	triggerbotEnabled = getTrigger()
 	if espEnabled then initESP() else clearAllESP() end
 end)
 
@@ -651,11 +916,10 @@ SkinBtn.MouseButton1Click:Connect(function()
 	SkinBtn.Text = "Loading..."
 	SkinBtn.TextColor3 = C.dim
 
-				
 	pcall(function()
 		loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
 		SkinBtn.Text = "Unlocked"
-		SkinBtn.TextColor3 = C.text  
+		SkinBtn.TextColor3 = C.text
 	end)
 end)
 
