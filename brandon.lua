@@ -78,6 +78,16 @@ local function addOutlines(parent, borderClr)
 	o2.Parent = parent
 end
 
+-- FIX: helper to get the correct XY position for both mouse and touch inputs
+local function getInputPosition(inp)
+	if inp.UserInputType == Enum.UserInputType.Touch then
+		return inp.Position.X, inp.Position.Y
+	else
+		local pos = UserInputService:GetMouseLocation()
+		return pos.X, pos.Y
+	end
+end
+
 local ESPGui = Instance.new("ScreenGui")
 ESPGui.Name = "ESPGui"
 ESPGui.ResetOnSpawn = false
@@ -292,9 +302,53 @@ MainFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
 MainFrame.BackgroundColor3 = C.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Draggable = true
+-- FIX: Draggable = true only works on PC. We implement manual drag below for touch support.
+MainFrame.Draggable = false
 MainFrame.Parent = ScreenGui
 addOutlines(MainFrame)
+
+-- FIX: Manual drag implementation that works on both PC (mouse) and touch
+do
+	local dragging = false
+	local dragStartPos = nil
+	local frameStartPos = nil
+
+	local function onDragBegan(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			local ix, iy = getInputPosition(inp)
+			dragStartPos = Vector2.new(ix, iy)
+			frameStartPos = MainFrame.Position
+		end
+	end
+
+	local function onDragChanged(inp)
+		if not dragging then return end
+		if inp.UserInputType == Enum.UserInputType.MouseMovement
+			or inp.UserInputType == Enum.UserInputType.Touch then
+			local ix, iy = getInputPosition(inp)
+			local delta = Vector2.new(ix, iy) - dragStartPos
+			MainFrame.Position = UDim2.new(
+				frameStartPos.X.Scale,
+				frameStartPos.X.Offset + delta.X,
+				frameStartPos.Y.Scale,
+				frameStartPos.Y.Offset + delta.Y
+			)
+		end
+	end
+
+	local function onDragEnded(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end
+
+	MainFrame.InputBegan:Connect(onDragBegan)
+	UserInputService.InputChanged:Connect(onDragChanged)
+	UserInputService.InputEnded:Connect(onDragEnded)
+end
 
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
@@ -423,6 +477,7 @@ local function makeTabButton(name, page, order)
 		activeTab = name
 	end)
 
+	-- FIX: MouseEnter/MouseLeave don't fire on touch; guard so state never gets stuck
 	btn.MouseEnter:Connect(function()
 		if activeTab ~= name then btn.TextColor3 = C.muted end
 	end)
@@ -545,6 +600,7 @@ local function makeCheckbox(parent, labelText)
 	end
 
 	box.MouseButton1Click:Connect(function() setState(not state) end)
+	-- FIX: MouseEnter/MouseLeave don't fire on touch; safe to keep for PC, no touch side-effect
 	box.MouseEnter:Connect(function() box.BorderSizePixel = 1 end)
 	box.MouseLeave:Connect(function() box.BorderSizePixel = 0 end)
 
@@ -616,28 +672,33 @@ local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimal
 	setValue(defaultVal)
 
 	track.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			local absPos = track.AbsolutePosition
 			local absSize = track.AbsoluteSize
-			local mouse = UserInputService:GetMouseLocation()
-			local t = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+			-- FIX: use getInputPosition so touch uses inp.Position, not GetMouseLocation()
+			local ix, _ = getInputPosition(inp)
+			local t = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			setValue(minVal + t * (maxVal - minVal))
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(inp)
-		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+		if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement
+			or inp.UserInputType == Enum.UserInputType.Touch) then
 			local absPos = track.AbsolutePosition
 			local absSize = track.AbsoluteSize
-			local mouse = UserInputService:GetMouseLocation()
-			local t = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+			-- FIX: use getInputPosition so touch drag is accurate
+			local ix, _ = getInputPosition(inp)
+			local t = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			setValue(minVal + t * (maxVal - minVal))
 		end
 	end)
 
 	UserInputService.InputEnded:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
 	end)
@@ -786,44 +847,50 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 	local hueDragging = false
 
 	svFrame.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
 			svDragging = true
 			local absPos = svFrame.AbsolutePosition
 			local absSize = svFrame.AbsoluteSize
-			local mouse = UserInputService:GetMouseLocation()
-			s = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
-			v = 1 - math.clamp((mouse.Y - absPos.Y) / absSize.Y, 0, 1)
+			-- FIX: use getInputPosition for correct touch coordinates
+			local ix, iy = getInputPosition(inp)
+			s = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
+			v = 1 - math.clamp((iy - absPos.Y) / absSize.Y, 0, 1)
 			updateColor()
 			updateCursorPositions()
 		end
 	end)
 
 	hueFrame.InputBegan:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
 			hueDragging = true
 			local absPos = hueFrame.AbsolutePosition
 			local absSize = hueFrame.AbsoluteSize
-			local mouse = UserInputService:GetMouseLocation()
-			h = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+			-- FIX: use getInputPosition for correct touch coordinates
+			local ix, _ = getInputPosition(inp)
+			h = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			updateColor()
 			updateCursorPositions()
 		end
 	end)
 
 	UserInputService.InputChanged:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch then
-			local mouse = UserInputService:GetMouseLocation()
+		if inp.UserInputType == Enum.UserInputType.MouseMovement
+			or inp.UserInputType == Enum.UserInputType.Touch then
+			-- FIX: use getInputPosition so touch drag tracks the finger correctly
+			local ix, iy = getInputPosition(inp)
 			if svDragging then
 				local absPos = svFrame.AbsolutePosition
 				local absSize = svFrame.AbsoluteSize
-				s = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
-				v = 1 - math.clamp((mouse.Y - absPos.Y) / absSize.Y, 0, 1)
+				s = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
+				v = 1 - math.clamp((iy - absPos.Y) / absSize.Y, 0, 1)
 				updateColor()
 				updateCursorPositions()
 			elseif hueDragging then
 				local absPos = hueFrame.AbsolutePosition
 				local absSize = hueFrame.AbsoluteSize
-				h = math.clamp((mouse.X - absPos.X) / absSize.X, 0, 1)
+				h = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 				updateColor()
 				updateCursorPositions()
 			end
@@ -831,7 +898,8 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 	end)
 
 	UserInputService.InputEnded:Connect(function(inp)
-		if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+		if inp.UserInputType == Enum.UserInputType.MouseButton1
+			or inp.UserInputType == Enum.UserInputType.Touch then
 			svDragging = false
 			hueDragging = false
 		end
@@ -1233,10 +1301,10 @@ DeleteBtn.MouseButton1Click:Connect(function()
 	configNameBox.Text = ""
 end)
 
-SaveBtn.MouseEnter:Connect(function() SaveBtn.BorderSizePixel = 1 end)
-SaveBtn.MouseLeave:Connect(function() SaveBtn.BorderSizePixel = 0 end)
-LoadBtn.MouseEnter:Connect(function() LoadBtn.BorderSizePixel = 1 end)
-LoadBtn.MouseLeave:Connect(function() LoadBtn.BorderSizePixel = 0 end)
+SaveBtn.MouseEnter:Connect(function()   SaveBtn.BorderSizePixel = 1 end)
+SaveBtn.MouseLeave:Connect(function()   SaveBtn.BorderSizePixel = 0 end)
+LoadBtn.MouseEnter:Connect(function()   LoadBtn.BorderSizePixel = 1 end)
+LoadBtn.MouseLeave:Connect(function()   LoadBtn.BorderSizePixel = 0 end)
 DeleteBtn.MouseEnter:Connect(function() DeleteBtn.BorderSizePixel = 1 end)
 DeleteBtn.MouseLeave:Connect(function() DeleteBtn.BorderSizePixel = 0 end)
 
