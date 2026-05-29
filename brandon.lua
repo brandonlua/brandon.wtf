@@ -41,6 +41,12 @@ local checkboxFillRefs = {}
 local setAutoExecuteCB = nil
 local setAutoSaveCB    = nil
 local setAutoLoadCB    = nil
+local setTriggerCB     = nil
+local setBoxESPCB      = nil
+local setNameESPCB     = nil
+local setFillESPCB     = nil
+local setReactionCB    = nil
+local setReleaseCB     = nil
 
 local function applyAccent(color)
 	C.accent = color
@@ -545,6 +551,8 @@ local function makeCheckbox(parent, labelText)
 	return row, function() return state end, setState
 end
 
+local sliderSetters = {}
+
 local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimals, onChanged)
 	local row = Instance.new("Frame")
 	row.Size = UDim2.new(1, 0, 0, 36)
@@ -634,7 +642,7 @@ local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimal
 		end
 	end)
 
-	return row
+	return row, setValue
 end
 
 local function makeColorPicker(parent, labelText, defaultColor, onChange)
@@ -839,11 +847,21 @@ end
 
 local function serializeConfig(data)
 	local parts = {}
-	parts[#parts+1] = "boxColor="        .. data.boxColor[1]    .. "," .. data.boxColor[2]    .. "," .. data.boxColor[3]
-	parts[#parts+1] = "nameColor="       .. data.nameColor[1]   .. "," .. data.nameColor[2]   .. "," .. data.nameColor[3]
-	parts[#parts+1] = "accentColor="     .. data.accentColor[1] .. "," .. data.accentColor[2] .. "," .. data.accentColor[3]
+	parts[#parts+1] = "boxColorR="       .. data.boxColorR
+	parts[#parts+1] = "boxColorG="       .. data.boxColorG
+	parts[#parts+1] = "boxColorB="       .. data.boxColorB
+	parts[#parts+1] = "nameColorR="      .. data.nameColorR
+	parts[#parts+1] = "nameColorG="      .. data.nameColorG
+	parts[#parts+1] = "nameColorB="      .. data.nameColorB
+	parts[#parts+1] = "accentR="         .. data.accentR
+	parts[#parts+1] = "accentG="         .. data.accentG
+	parts[#parts+1] = "accentB="         .. data.accentB
 	parts[#parts+1] = "triggerReaction=" .. data.triggerReaction
 	parts[#parts+1] = "triggerRelease="  .. data.triggerRelease
+	parts[#parts+1] = "triggerOn="       .. tostring(data.triggerOn)
+	parts[#parts+1] = "boxESP="          .. tostring(data.boxESP)
+	parts[#parts+1] = "nameESP="         .. tostring(data.nameESP)
+	parts[#parts+1] = "fillESP="         .. tostring(data.fillESP)
 	parts[#parts+1] = "autoExecute="     .. tostring(data.autoExecute)
 	parts[#parts+1] = "autoSave="        .. tostring(data.autoSave)
 	parts[#parts+1] = "autoLoad="        .. tostring(data.autoLoad)
@@ -855,13 +873,13 @@ local function deserializeConfig(str)
 	for pair in str:gmatch("[^;]+") do
 		local key, val = pair:match("^(.-)=(.+)$")
 		if key and val then
-			if key == "boxColor" or key == "nameColor" or key == "accentColor" then
-				local r, g, b = val:match("([^,]+),([^,]+),([^,]+)")
-				if r then data[key] = { tonumber(r), tonumber(g), tonumber(b) } end
-			elseif key == "triggerReaction" or key == "triggerRelease" then
-				data[key] = tonumber(val)
-			elseif key == "autoExecute" or key == "autoSave" or key == "autoLoad" then
-				data[key] = val == "true"
+			local numVal = tonumber(val)
+			if numVal then
+				data[key] = numVal
+			elseif val == "true" then
+				data[key] = true
+			elseif val == "false" then
+				data[key] = false
 			end
 		end
 	end
@@ -872,11 +890,21 @@ local function saveConfig(name)
 	local ok = pcall(function()
 		if not writefile then error("no writefile") end
 		local data = {
-			boxColor        = { boxColor.R,  boxColor.G,  boxColor.B  },
-			nameColor       = { nameColor.R, nameColor.G, nameColor.B },
-			accentColor     = { C.accent.R,  C.accent.G,  C.accent.B  },
+			boxColorR       = boxColor.R,
+			boxColorG       = boxColor.G,
+			boxColorB       = boxColor.B,
+			nameColorR      = nameColor.R,
+			nameColorG      = nameColor.G,
+			nameColorB      = nameColor.B,
+			accentR         = C.accent.R,
+			accentG         = C.accent.G,
+			accentB         = C.accent.B,
 			triggerReaction = triggerReactionTime,
 			triggerRelease  = triggerReleaseTime,
+			triggerOn       = triggerbotEnabled,
+			boxESP          = espEnabled,
+			nameESP         = nameEnabled,
+			fillESP         = fillEnabled,
 			autoExecute     = config.autoExecute,
 			autoSave        = config.autoSave,
 			autoLoad        = config.autoLoad,
@@ -892,15 +920,29 @@ local function loadConfig(name)
 		return deserializeConfig(readfile("brandon_" .. name .. ".cfg"))
 	end)
 	if ok and result then
-		if result.boxColor   then boxColor  = Color3.new(result.boxColor[1],  result.boxColor[2],  result.boxColor[3])  end
-		if result.nameColor  then nameColor = Color3.new(result.nameColor[1], result.nameColor[2], result.nameColor[3]) end
-		if result.accentColor then
-			applyAccent(Color3.new(result.accentColor[1], result.accentColor[2], result.accentColor[3]))
+		if result.boxColorR then
+			boxColor = Color3.new(result.boxColorR, result.boxColorG, result.boxColorB)
+		end
+		if result.nameColorR then
+			nameColor = Color3.new(result.nameColorR, result.nameColorG, result.nameColorB)
+		end
+		if result.accentR then
+			applyAccent(Color3.new(result.accentR, result.accentG, result.accentB))
 			AccentLine.BackgroundColor3 = C.accent
 			ScrollFrame.ScrollBarImageColor3 = C.accent
 		end
-		if result.triggerReaction then triggerReactionTime = result.triggerReaction end
-		if result.triggerRelease  then triggerReleaseTime  = result.triggerRelease  end
+		if result.triggerReaction then
+			triggerReactionTime = result.triggerReaction
+			if setReactionCB then setReactionCB(result.triggerReaction) end
+		end
+		if result.triggerRelease then
+			triggerReleaseTime = result.triggerRelease
+			if setReleaseCB then setReleaseCB(result.triggerRelease) end
+		end
+		if result.triggerOn ~= nil and setTriggerCB then setTriggerCB(result.triggerOn) end
+		if result.boxESP    ~= nil and setBoxESPCB   then setBoxESPCB(result.boxESP)    end
+		if result.nameESP   ~= nil and setNameESPCB  then setNameESPCB(result.nameESP)  end
+		if result.fillESP   ~= nil and setFillESPCB  then setFillESPCB(result.fillESP)  end
 		if result.autoExecute ~= nil then
 			config.autoExecute = result.autoExecute
 			if setAutoExecuteCB then setAutoExecuteCB(result.autoExecute) end
@@ -942,19 +984,26 @@ local function listConfigs()
 end
 
 local _, CombatHolder = makeSection(CombatPage, "Triggerbot", 72)
-local _, getTrigger   = makeCheckbox(CombatHolder, "Triggerbot")
+local _, getTrigger, _setTrigger = makeCheckbox(CombatHolder, "Triggerbot")
+setTriggerCB = _setTrigger
 
-makeSlider(CombatHolder, "Reaction Time", 0.01, 0.5, triggerReactionTime, 2, function(val)
+local _, setReaction = makeSlider(CombatHolder, "Reaction Time", 0.01, 0.5, triggerReactionTime, 2, function(val)
 	triggerReactionTime = val
 end)
-makeSlider(CombatHolder, "Release Time", 0.01, 0.3, triggerReleaseTime, 2, function(val)
+setReactionCB = setReaction
+
+local _, setRelease = makeSlider(CombatHolder, "Release Time", 0.01, 0.3, triggerReleaseTime, 2, function(val)
 	triggerReleaseTime = val
 end)
+setReleaseCB = setRelease
 
-local _, ESPHolder  = makeSection(VisualPage, "ESP", 36)
-local _, getBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
-local _, getNameESP = makeCheckbox(ESPHolder, "Name ESP")
-local _, getFillESP = makeCheckbox(ESPHolder, "Fill Box")
+local _, ESPHolder = makeSection(VisualPage, "ESP", 36)
+local _, getBoxESP,  _setBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
+local _, getNameESP, _setNameESP = makeCheckbox(ESPHolder, "Name ESP")
+local _, getFillESP, _setFillESP = makeCheckbox(ESPHolder, "Fill Box")
+setBoxESPCB  = _setBoxESP
+setNameESPCB = _setNameESP
+setFillESPCB = _setFillESP
 
 makeColorPicker(ESPHolder, "Box Color", boxColor, function(col)
 	boxColor = col
@@ -993,7 +1042,6 @@ end)
 local _, getAutoExecute, _setAutoExecute = makeCheckbox(SettingHolder, "Auto Execute")
 local _, getAutoSave,    _setAutoSave    = makeCheckbox(SettingHolder, "Auto Save")
 local _, getAutoLoad,    _setAutoLoad    = makeCheckbox(SettingHolder, "Auto Load")
-
 setAutoExecuteCB = _setAutoExecute
 setAutoSaveCB    = _setAutoSave
 setAutoLoadCB    = _setAutoLoad
@@ -1012,6 +1060,13 @@ configNameBox.ClearTextOnFocus = false
 configNameBox.ZIndex = 3
 configNameBox.Parent = ConfigHolder
 addOutlines(configNameBox)
+
+configNameBox.Focused:Connect(function()
+	UserInputService.ModalEnabled = true
+end)
+configNameBox.FocusLost:Connect(function()
+	UserInputService.ModalEnabled = false
+end)
 
 local configBtnRow = Instance.new("Frame")
 configBtnRow.Size = UDim2.new(1, 0, 0, 20)
@@ -1263,20 +1318,30 @@ end)
 task.defer(function()
 	task.wait(1)
 	refreshConfigList()
-	local cfgLoaded = false
-	if isfile and isfile("brandon_autosave.cfg") then
-		cfgLoaded = loadConfig("autosave")
-		if cfgLoaded then
-			if config.autoExecute then
-				pcall(function()
-					loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
-				end)
-			end
+	local cfgOk = false
+	pcall(function()
+		if isfile and isfile("brandon_autosave.cfg") then
+			cfgOk = loadConfig("autosave")
 		end
+	end)
+	task.wait(0.1)
+	if config.autoLoad and not cfgOk then
+		pcall(function()
+			if isfile and isfile("brandon_autosave.cfg") then
+				loadConfig("autosave")
+			end
+		end)
+	end
+	if config.autoExecute then
+		task.wait(0.5)
+		pcall(function()
+			loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
+		end)
 	end
 end)
 
-UserInputService.InputBegan:Connect(function(i)
+UserInputService.InputBegan:Connect(function(i, gameProcessed)
+	if gameProcessed then return end
 	if i.KeyCode == Enum.KeyCode.RightShift then
 		ScreenGui.Enabled = not ScreenGui.Enabled
 	end
