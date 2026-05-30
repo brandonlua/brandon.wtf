@@ -1,9 +1,16 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local Camera = workspace.CurrentCamera
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+local RIVALS_ID = 2648455065
+local NDS_ID    = 189707
+local currentGame = "other"
+if game.PlaceId == RIVALS_ID then currentGame = "rivals"
+elseif game.PlaceId == NDS_ID then currentGame = "nds" end
 
 local C = {
 	bg      = Color3.fromRGB(20, 20, 20),
@@ -34,6 +41,19 @@ local triggerReactionTime = 0.08
 local triggerReleaseTime  = 0.05
 local triggerFiring       = false
 
+local flyEnabled    = false
+local flySpeed      = 50
+local flySpeedMult  = 3
+local flyAttachment = nil
+local flyLV         = nil
+local flyAO         = nil
+local flyRoot       = nil
+local flyHumanoid   = nil
+
+local godmodeEnabled = false
+local godmodeHB      = nil
+local INF            = math.huge
+
 local sliderFillRefs   = {}
 local sliderValRefs    = {}
 local checkboxFillRefs = {}
@@ -47,6 +67,7 @@ local setNameESPCB     = nil
 local setFillESPCB     = nil
 local setReactionCB    = nil
 local setReleaseCB     = nil
+local setFlyCB         = nil
 
 local function applyAccent(color)
 	C.accent = color
@@ -78,7 +99,6 @@ local function addOutlines(parent, borderClr)
 	o2.Parent = parent
 end
 
--- FIX: helper to get the correct XY position for both mouse and touch inputs
 local function getInputPosition(inp)
 	if inp.UserInputType == Enum.UserInputType.Touch then
 		return inp.Position.X, inp.Position.Y
@@ -289,10 +309,132 @@ coroutine.wrap(function()
 	end
 end)()
 
+local function stopFly()
+	flyEnabled = false
+	if flyHumanoid then flyHumanoid.PlatformStand = false end
+	if flyAttachment then flyAttachment:Destroy() end
+	flyAttachment = nil
+	flyLV         = nil
+	flyAO         = nil
+	flyRoot       = nil
+	flyHumanoid   = nil
+end
+
+local function startFly()
+	local character = player.Character or player.CharacterAdded:Wait()
+	flyHumanoid = character:FindFirstChildOfClass("Humanoid")
+	if flyHumanoid and flyHumanoid.SeatPart then
+		flyRoot = flyHumanoid.SeatPart
+	else
+		flyRoot = character:FindFirstChild("HumanoidRootPart")
+	end
+	if not flyRoot then return end
+	if flyAttachment then flyAttachment:Destroy() end
+	flyAttachment = Instance.new("Attachment", flyRoot)
+	flyLV = Instance.new("LinearVelocity", flyRoot)
+	flyLV.Attachment0 = flyAttachment
+	flyLV.MaxForce = math.huge
+	flyLV.VectorVelocity = Vector3.zero
+	flyAO = Instance.new("AlignOrientation", flyRoot)
+	flyAO.Attachment0 = flyAttachment
+	flyAO.MaxTorque = math.huge
+	flyAO.Responsiveness = 200
+	flyAO.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	flyEnabled = true
+end
+
+player.CharacterAdded:Connect(function()
+	task.wait(1)
+	if flyEnabled then startFly() end
+	if godmodeEnabled then
+		task.wait(0.5)
+		local hu = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+		if hu then
+			hu.MaxHealth = INF
+			hu.Health = INF
+			hu:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+		end
+	end
+end)
+
+local Controls = nil
+pcall(function()
+	Controls = require(player.PlayerScripts:WaitForChild("PlayerModule")):GetControls()
+end)
+
+RunService.RenderStepped:Connect(function()
+	if flyEnabled and flyRoot and flyLV and flyAO then
+		if not flyRoot.Parent then stopFly() return end
+		if flyHumanoid then
+			if flyHumanoid.SeatPart then
+				flyHumanoid.PlatformStand = false
+			else
+				flyHumanoid.PlatformStand = true
+			end
+		end
+		local moveVector = Controls and Controls:GetMoveVector() or Vector3.zero
+		local direction = (Camera.CFrame.LookVector * -moveVector.Z) + (Camera.CFrame.RightVector * moveVector.X)
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction += Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then direction += Vector3.new(0, -1, 0) end
+		flyLV.VectorVelocity = direction.Magnitude > 0 and direction.Unit * (flySpeed * flySpeedMult) or Vector3.zero
+		flyAO.CFrame = Camera.CFrame
+	end
+end)
+
+local function startGodmode()
+	for _, v in pairs(getgc(true)) do
+		if type(v) == "table" then
+			local h = rawget(v, "Health")
+			if h and h ~= INF then
+				rawset(v, "Health", INF)
+				rawset(v, "MaxHealth", INF)
+			end
+		end
+	end
+	if player.Character then
+		local hu = player.Character:FindFirstChildOfClass("Humanoid")
+		if hu then
+			hu.MaxHealth = INF
+			hu.Health = INF
+			hu:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+		end
+	end
+	if godmodeHB then godmodeHB:Disconnect() godmodeHB = nil end
+	local gcTimer = 0
+	godmodeHB = RunService.Heartbeat:Connect(function(dt)
+		if player.Character then
+			local hu = player.Character:FindFirstChildOfClass("Humanoid")
+			if hu then
+				if hu.MaxHealth ~= INF then hu.MaxHealth = INF end
+				hu.Health = hu.MaxHealth
+				hu:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+			end
+			gcTimer = gcTimer + dt
+			if gcTimer >= 5 then
+				gcTimer = 0
+				for _, v in pairs(getgc(true)) do
+					if type(v) == "table" then
+						local h = rawget(v, "Health")
+						if h and h ~= INF then
+							rawset(v, "Health", INF)
+							rawset(v, "MaxHealth", INF)
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
+local function stopGodmode()
+	if godmodeHB then godmodeHB:Disconnect() godmodeHB = nil end
+end
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "Brandon.wtf"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.DisplayOrder = 999999
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = playerGui
 
 local MainFrame = Instance.new("Frame")
@@ -301,19 +443,24 @@ MainFrame.Size = UDim2.new(0, 300, 0, 34)
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
 MainFrame.BackgroundColor3 = C.bg
 MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
--- FIX: Draggable = true only works on PC. We implement manual drag below for touch support.
+MainFrame.Active = false
 MainFrame.Draggable = false
 MainFrame.Parent = ScreenGui
 addOutlines(MainFrame)
 
--- FIX: Manual drag implementation that works on both PC (mouse) and touch
 do
 	local dragging = false
 	local dragStartPos = nil
 	local frameStartPos = nil
 
-	local function onDragBegan(inp)
+	TopBar_DragRef = Instance.new("Frame")
+	TopBar_DragRef.Size = UDim2.new(1, -36, 0, 32)
+	TopBar_DragRef.Position = UDim2.new(0, 0, 0, 0)
+	TopBar_DragRef.BackgroundTransparency = 1
+	TopBar_DragRef.ZIndex = 10
+	TopBar_DragRef.Parent = MainFrame
+
+	TopBar_DragRef.InputBegan:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1
 			or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -321,9 +468,9 @@ do
 			dragStartPos = Vector2.new(ix, iy)
 			frameStartPos = MainFrame.Position
 		end
-	end
+	end)
 
-	local function onDragChanged(inp)
+	UserInputService.InputChanged:Connect(function(inp)
 		if not dragging then return end
 		if inp.UserInputType == Enum.UserInputType.MouseMovement
 			or inp.UserInputType == Enum.UserInputType.Touch then
@@ -336,18 +483,14 @@ do
 				frameStartPos.Y.Offset + delta.Y
 			)
 		end
-	end
+	end)
 
-	local function onDragEnded(inp)
+	UserInputService.InputEnded:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1
 			or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
 		end
-	end
-
-	MainFrame.InputBegan:Connect(onDragBegan)
-	UserInputService.InputChanged:Connect(onDragChanged)
-	UserInputService.InputEnded:Connect(onDragEnded)
+	end)
 end
 
 local TopBar = Instance.new("Frame")
@@ -450,7 +593,7 @@ end
 
 local function makeTabButton(name, page, order)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0, 56, 0, 18)
+	btn.Size = UDim2.new(0, 50, 0, 18)
 	btn.BackgroundColor3 = C.item
 	btn.BorderSizePixel = 0
 	btn.Text = name
@@ -477,7 +620,6 @@ local function makeTabButton(name, page, order)
 		activeTab = name
 	end)
 
-	-- FIX: MouseEnter/MouseLeave don't fire on touch; guard so state never gets stuck
 	btn.MouseEnter:Connect(function()
 		if activeTab ~= name then btn.TextColor3 = C.muted end
 	end)
@@ -488,15 +630,19 @@ local function makeTabButton(name, page, order)
 	return btn
 end
 
-local CombatPage = makeTabPage()
-local VisualPage = makeTabPage()
-local MiscPage   = makeTabPage()
-local ClientPage = makeTabPage()
+local CombatPage   = makeTabPage()
+local VisualPage   = makeTabPage()
+local MovementPage = makeTabPage()
+local MiscPage     = makeTabPage()
+local ClientPage   = makeTabPage()
 
-makeTabButton("Combat",  CombatPage, 1)
-makeTabButton("Visuals", VisualPage, 2)
-makeTabButton("Misc",    MiscPage,   3)
-makeTabButton("Client",  ClientPage, 4)
+makeTabButton("Combat",   CombatPage,   1)
+makeTabButton("Visuals",  VisualPage,   2)
+makeTabButton("Movement", MovementPage, 3)
+if currentGame == "rivals" then
+	makeTabButton("Misc", MiscPage, 4)
+end
+makeTabButton("Client", ClientPage, 5)
 
 local function makeSection(parentPage, name, labelWidth)
 	local sec = Instance.new("Frame")
@@ -600,61 +746,64 @@ local function makeCheckbox(parent, labelText)
 	end
 
 	box.MouseButton1Click:Connect(function() setState(not state) end)
-	-- FIX: MouseEnter/MouseLeave don't fire on touch; safe to keep for PC, no touch side-effect
 	box.MouseEnter:Connect(function() box.BorderSizePixel = 1 end)
 	box.MouseLeave:Connect(function() box.BorderSizePixel = 0 end)
 
 	return row, function() return state end, setState
 end
 
-local sliderSetters = {}
-
 local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimals, onChanged)
 	local row = Instance.new("Frame")
-	row.Size = UDim2.new(1, 0, 0, 36)
+	row.Size = UDim2.new(1, 0, 0, 22)
 	row.BackgroundTransparency = 1
 	row.BorderSizePixel = 0
 	row.ZIndex = 2
 	row.Parent = parent
 
-	local lbl = Instance.new("TextLabel")
-	lbl.Size = UDim2.new(1, 0, 0, 14)
-	lbl.BackgroundTransparency = 1
-	lbl.Text = labelText
-	lbl.TextColor3 = C.text
-	lbl.TextSize = 13
-	lbl.Font = Enum.Font.Code
-	lbl.TextXAlignment = Enum.TextXAlignment.Left
-	lbl.ZIndex = 3
-	lbl.Parent = row
-
-	local valLabel = Instance.new("TextLabel")
-	valLabel.Size = UDim2.new(1, 0, 0, 14)
-	valLabel.BackgroundTransparency = 1
-	valLabel.TextColor3 = C.text
-	valLabel.TextSize = 13
-	valLabel.Font = Enum.Font.Code
-	valLabel.TextXAlignment = Enum.TextXAlignment.Right
-	valLabel.ZIndex = 3
-	valLabel.Parent = row
-	table.insert(sliderValRefs, valLabel)
-
 	local track = Instance.new("Frame")
-	track.Size = UDim2.new(1, 0, 0, 6)
-	track.Position = UDim2.new(0, 0, 0, 20)
+	track.Size = UDim2.new(1, 0, 0, 22)
+	track.Position = UDim2.new(0, 0, 0, 0)
 	track.BackgroundColor3 = C.item
 	track.BorderSizePixel = 0
 	track.ZIndex = 3
+	track.ClipsDescendants = true
 	track.Parent = row
 	addOutlines(track)
 
 	local fill = Instance.new("Frame")
 	fill.Size = UDim2.new(0, 0, 1, 0)
 	fill.BackgroundColor3 = C.accent
+	fill.BackgroundTransparency = 0.35
 	fill.BorderSizePixel = 0
 	fill.ZIndex = 4
 	fill.Parent = track
 	table.insert(sliderFillRefs, fill)
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0.6, -6, 1, 0)
+	lbl.Position = UDim2.new(0, 6, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = labelText
+	lbl.TextColor3 = C.text
+	lbl.TextSize = 12
+	lbl.Font = Enum.Font.Code
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.TextYAlignment = Enum.TextYAlignment.Center
+	lbl.ZIndex = 6
+	lbl.Parent = track
+
+	local valLabel = Instance.new("TextLabel")
+	valLabel.Size = UDim2.new(0.4, -6, 1, 0)
+	valLabel.Position = UDim2.new(0.6, 0, 0, 0)
+	valLabel.BackgroundTransparency = 1
+	valLabel.TextColor3 = C.accent
+	valLabel.TextSize = 12
+	valLabel.Font = Enum.Font.Code
+	valLabel.TextXAlignment = Enum.TextXAlignment.Right
+	valLabel.TextYAlignment = Enum.TextYAlignment.Center
+	valLabel.ZIndex = 6
+	valLabel.Parent = track
+	table.insert(sliderValRefs, valLabel)
 
 	local currentVal = defaultVal
 	local dragging = false
@@ -677,7 +826,6 @@ local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimal
 			dragging = true
 			local absPos = track.AbsolutePosition
 			local absSize = track.AbsoluteSize
-			-- FIX: use getInputPosition so touch uses inp.Position, not GetMouseLocation()
 			local ix, _ = getInputPosition(inp)
 			local t = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			setValue(minVal + t * (maxVal - minVal))
@@ -689,7 +837,6 @@ local function makeSlider(parent, labelText, minVal, maxVal, defaultVal, decimal
 			or inp.UserInputType == Enum.UserInputType.Touch) then
 			local absPos = track.AbsolutePosition
 			local absSize = track.AbsoluteSize
-			-- FIX: use getInputPosition so touch drag is accurate
 			local ix, _ = getInputPosition(inp)
 			local t = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			setValue(minVal + t * (maxVal - minVal))
@@ -807,7 +954,7 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 		ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
 		ColorSequenceKeypoint.new(0.5,  Color3.fromHSV(0.5,  1, 1)),
 		ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
-		ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
+		ColorSequenceKeypoint.new(0.83, Color3.new(1, 1, 1)),
 		ColorSequenceKeypoint.new(1,    Color3.fromHSV(1,    1, 1))
 	}
 	hueGradient.Parent = hueFrame
@@ -852,7 +999,6 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 			svDragging = true
 			local absPos = svFrame.AbsolutePosition
 			local absSize = svFrame.AbsoluteSize
-			-- FIX: use getInputPosition for correct touch coordinates
 			local ix, iy = getInputPosition(inp)
 			s = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			v = 1 - math.clamp((iy - absPos.Y) / absSize.Y, 0, 1)
@@ -867,7 +1013,6 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 			hueDragging = true
 			local absPos = hueFrame.AbsolutePosition
 			local absSize = hueFrame.AbsoluteSize
-			-- FIX: use getInputPosition for correct touch coordinates
 			local ix, _ = getInputPosition(inp)
 			h = math.clamp((ix - absPos.X) / absSize.X, 0, 1)
 			updateColor()
@@ -878,7 +1023,6 @@ local function makeColorPicker(parent, labelText, defaultColor, onChange)
 	UserInputService.InputChanged:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseMovement
 			or inp.UserInputType == Enum.UserInputType.Touch then
-			-- FIX: use getInputPosition so touch drag tracks the finger correctly
 			local ix, iy = getInputPosition(inp)
 			if svDragging then
 				local absPos = svFrame.AbsolutePosition
@@ -1051,19 +1195,37 @@ local function listConfigs()
 	return {}
 end
 
-local _, CombatHolder = makeSection(CombatPage, "Triggerbot", 72)
-local _, getTrigger, _setTrigger = makeCheckbox(CombatHolder, "Triggerbot")
-setTriggerCB = _setTrigger
+local _, CombatHolder = makeSection(CombatPage, "Combat", 56)
 
-local _, setReaction = makeSlider(CombatHolder, "Reaction Time", 0.01, 0.5, triggerReactionTime, 2, function(val)
-	triggerReactionTime = val
-end)
-setReactionCB = setReaction
+if currentGame == "rivals" then
+	local _, getTrigger, _setTrigger = makeCheckbox(CombatHolder, "Triggerbot")
+	setTriggerCB = _setTrigger
 
-local _, setRelease = makeSlider(CombatHolder, "Release Time", 0.01, 0.3, triggerReleaseTime, 2, function(val)
-	triggerReleaseTime = val
-end)
-setReleaseCB = setRelease
+	local _, setReaction = makeSlider(CombatHolder, "Reaction Time", 0.01, 0.5, triggerReactionTime, 2, function(val)
+		triggerReactionTime = val
+	end)
+	setReactionCB = setReaction
+
+	local _, setRelease = makeSlider(CombatHolder, "Release Time", 0.01, 0.3, triggerReleaseTime, 2, function(val)
+		triggerReleaseTime = val
+	end)
+	setReleaseCB = setRelease
+end
+
+if currentGame == "nds" then
+	local _, getGodmode, _setGodmode = makeCheckbox(CombatHolder, "God Mode")
+
+	RunService.Heartbeat:Connect(function()
+		local want = getGodmode()
+		if want and not godmodeEnabled then
+			godmodeEnabled = true
+			startGodmode()
+		elseif not want and godmodeEnabled then
+			godmodeEnabled = false
+			stopGodmode()
+		end
+	end)
+end
 
 local _, ESPHolder = makeSection(VisualPage, "ESP", 36)
 local _, getBoxESP,  _setBoxESP  = makeCheckbox(ESPHolder, "Box ESP")
@@ -1082,20 +1244,40 @@ makeColorPicker(ESPHolder, "Name Color", nameColor, function(col)
 	updateESPColors()
 end)
 
-local _, MiscHolder = makeSection(MiscPage, "Cosmetics", 70)
+local _, FlyHolder = makeSection(MovementPage, "Fly", 26)
+local _, getFly, _setFly = makeCheckbox(FlyHolder, "Fly")
+setFlyCB = _setFly
+makeSlider(FlyHolder, "Fly Speed", 10, 300, flySpeed, 0, function(val)
+	flySpeed = val
+end)
 
-local SkinBtn = Instance.new("TextButton")
-SkinBtn.Size = UDim2.new(1, 0, 0, 20)
-SkinBtn.BackgroundColor3 = C.item
-SkinBtn.BorderSizePixel = 0
-SkinBtn.AutoButtonColor = false
-SkinBtn.Text = "Unlock All Skins"
-SkinBtn.TextColor3 = C.text
-SkinBtn.TextSize = 14
-SkinBtn.Font = Enum.Font.Code
-SkinBtn.ZIndex = 2
-SkinBtn.Parent = MiscHolder
-addOutlines(SkinBtn)
+if currentGame == "rivals" then
+	local _, MiscHolder = makeSection(MiscPage, "Cosmetics", 70)
+	local SkinBtn = Instance.new("TextButton")
+	SkinBtn.Size = UDim2.new(1, 0, 0, 20)
+	SkinBtn.BackgroundColor3 = C.item
+	SkinBtn.BorderSizePixel = 0
+	SkinBtn.AutoButtonColor = false
+	SkinBtn.Text = "Unlock All Skins"
+	SkinBtn.TextColor3 = C.text
+	SkinBtn.TextSize = 14
+	SkinBtn.Font = Enum.Font.Code
+	SkinBtn.ZIndex = 2
+	SkinBtn.Parent = MiscHolder
+	addOutlines(SkinBtn)
+
+	SkinBtn.MouseButton1Click:Connect(function()
+		SkinBtn.Text = "Loading..."
+		SkinBtn.TextColor3 = C.dim
+		pcall(function()
+			loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
+			SkinBtn.Text = "Unlocked"
+			SkinBtn.TextColor3 = C.text
+		end)
+	end)
+	SkinBtn.MouseEnter:Connect(function() SkinBtn.BorderSizePixel = 1 end)
+	SkinBtn.MouseLeave:Connect(function() SkinBtn.BorderSizePixel = 0 end)
+end
 
 local _, ThemeHolder   = makeSection(ClientPage, "Theme", 50)
 local _, SettingHolder = makeSection(ClientPage, "Settings", 60)
@@ -1110,9 +1292,12 @@ end)
 local _, getAutoExecute, _setAutoExecute = makeCheckbox(SettingHolder, "Auto Execute")
 local _, getAutoSave,    _setAutoSave    = makeCheckbox(SettingHolder, "Auto Save")
 local _, getAutoLoad,    _setAutoLoad    = makeCheckbox(SettingHolder, "Auto Load")
-setAutoExecuteCB = _setAutoExecute
-setAutoSaveCB    = _setAutoSave
-setAutoLoadCB    = _setAutoLoad
+local setAutoExecuteCB2 = _setAutoExecute
+local setAutoSaveCB2    = _setAutoSave
+local setAutoLoadCB2    = _setAutoLoad
+setAutoExecuteCB = setAutoExecuteCB2
+setAutoSaveCB    = setAutoSaveCB2
+setAutoLoadCB    = setAutoLoadCB2
 
 local configNameBox = Instance.new("TextBox")
 configNameBox.Size = UDim2.new(1, 0, 0, 22)
@@ -1128,13 +1313,6 @@ configNameBox.ClearTextOnFocus = false
 configNameBox.ZIndex = 3
 configNameBox.Parent = ConfigHolder
 addOutlines(configNameBox)
-
-configNameBox.Focused:Connect(function()
-	UserInputService.ModalEnabled = true
-end)
-configNameBox.FocusLost:Connect(function()
-	UserInputService.ModalEnabled = false
-end)
 
 local configBtnRow = Instance.new("Frame")
 configBtnRow.Size = UDim2.new(1, 0, 0, 20)
@@ -1351,18 +1529,26 @@ end)
 
 HideBtn.MouseEnter:Connect(function() HideBtn.BorderSizePixel = 1 end)
 HideBtn.MouseLeave:Connect(function() HideBtn.BorderSizePixel = 0 end)
-SkinBtn.MouseEnter:Connect(function() SkinBtn.BorderSizePixel = 1 end)
-SkinBtn.MouseLeave:Connect(function() SkinBtn.BorderSizePixel = 0 end)
 
 local autoSaveTimer = 0
 RunService.Heartbeat:Connect(function(dt)
 	espEnabled         = getBoxESP()
 	nameEnabled        = getNameESP()
 	fillEnabled        = getFillESP()
-	triggerbotEnabled  = getTrigger()
+	if setTriggerCB then triggerbotEnabled = (function()
+		return false
+	end)() end
 	config.autoExecute = getAutoExecute()
 	config.autoSave    = getAutoSave()
 	config.autoLoad    = getAutoLoad()
+
+	local wantFly = getFly()
+	if wantFly and not flyEnabled then
+		startFly()
+	elseif not wantFly and flyEnabled then
+		stopFly()
+	end
+
 	if espEnabled then initESP() else clearAllESP() end
 	if config.autoSave then
 		autoSaveTimer = autoSaveTimer + dt
@@ -1373,14 +1559,32 @@ RunService.Heartbeat:Connect(function(dt)
 	end
 end)
 
-SkinBtn.MouseButton1Click:Connect(function()
-	SkinBtn.Text = "Loading..."
-	SkinBtn.TextColor3 = C.dim
-	pcall(function()
-		loadstring(game:HttpGet("https://pastebin.com/raw/4rVNKnw0"))()
-		SkinBtn.Text = "Unlocked"
-		SkinBtn.TextColor3 = C.text
+if currentGame == "rivals" then
+	RunService.Heartbeat:Connect(function()
+		if setTriggerCB then
+			triggerbotEnabled = (function()
+				for tname, tdata in pairs(tabs) do
+					if tname == "Combat" then
+						local holder = tdata.page:FindFirstChild("ItemHolder", true)
+						break
+					end
+				end
+				return triggerbotEnabled
+			end)()
+		end
 	end)
+end
+
+local getTriggerFinal = function() return triggerbotEnabled end
+if currentGame == "rivals" then
+	local _, getTriggerInner, _st = makeCheckbox(Instance.new("Frame"), "")
+	getTriggerFinal = getTriggerInner
+end
+
+RunService.Heartbeat:Connect(function()
+	if currentGame == "rivals" and setTriggerCB then
+		triggerbotEnabled = setTriggerCB ~= nil and triggerbotEnabled or false
+	end
 end)
 
 task.defer(function()
