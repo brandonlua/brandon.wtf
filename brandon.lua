@@ -50,6 +50,9 @@ local flyAO         = nil
 local flyRoot       = nil
 local flyHumanoid   = nil
 
+local noclipEnabled = false
+local noclipConn    = nil
+
 local godmodeEnabled = false
 local godmodeHB      = nil
 local INF            = math.huge
@@ -68,6 +71,7 @@ local setFillESPCB     = nil
 local setReactionCB    = nil
 local setReleaseCB     = nil
 local setFlyCB         = nil
+local setNoclipCB      = nil
 
 local function applyAccent(color)
 	C.accent = color
@@ -343,9 +347,39 @@ local function startFly()
 	flyEnabled = true
 end
 
+local function stopNoclip()
+	noclipEnabled = false
+	if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+	local character = player.Character
+	if character then
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = true
+			end
+		end
+	end
+end
+
+local function startNoclip()
+	noclipEnabled = true
+	noclipConn = RunService.Stepped:Connect(function()
+		local character = player.Character
+		if not character then return end
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanCollide = false
+			end
+		end
+	end)
+end
+
 player.CharacterAdded:Connect(function()
 	task.wait(1)
 	if flyEnabled then startFly() end
+	if noclipEnabled then
+		if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+		startNoclip()
+	end
 	if godmodeEnabled then
 		task.wait(0.5)
 		local hu = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
@@ -453,14 +487,14 @@ do
 	local dragStartPos = nil
 	local frameStartPos = nil
 
-	TopBar_DragRef = Instance.new("Frame")
-	TopBar_DragRef.Size = UDim2.new(1, -36, 0, 32)
-	TopBar_DragRef.Position = UDim2.new(0, 0, 0, 0)
-	TopBar_DragRef.BackgroundTransparency = 1
-	TopBar_DragRef.ZIndex = 10
-	TopBar_DragRef.Parent = MainFrame
+	local dragZone = Instance.new("Frame")
+	dragZone.Size = UDim2.new(1, -36, 0, 32)
+	dragZone.Position = UDim2.new(0, 0, 0, 0)
+	dragZone.BackgroundTransparency = 1
+	dragZone.ZIndex = 10
+	dragZone.Parent = MainFrame
 
-	TopBar_DragRef.InputBegan:Connect(function(inp)
+	dragZone.InputBegan:Connect(function(inp)
 		if inp.UserInputType == Enum.UserInputType.MouseButton1
 			or inp.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
@@ -1251,6 +1285,10 @@ makeSlider(FlyHolder, "Fly Speed", 10, 300, flySpeed, 0, function(val)
 	flySpeed = val
 end)
 
+local _, NoclipHolder = makeSection(MovementPage, "Noclip", 56)
+local _, getNoclip, _setNoclip = makeCheckbox(NoclipHolder, "Noclip")
+setNoclipCB = _setNoclip
+
 if currentGame == "rivals" then
 	local _, MiscHolder = makeSection(MiscPage, "Cosmetics", 70)
 	local SkinBtn = Instance.new("TextButton")
@@ -1292,12 +1330,9 @@ end)
 local _, getAutoExecute, _setAutoExecute = makeCheckbox(SettingHolder, "Auto Execute")
 local _, getAutoSave,    _setAutoSave    = makeCheckbox(SettingHolder, "Auto Save")
 local _, getAutoLoad,    _setAutoLoad    = makeCheckbox(SettingHolder, "Auto Load")
-local setAutoExecuteCB2 = _setAutoExecute
-local setAutoSaveCB2    = _setAutoSave
-local setAutoLoadCB2    = _setAutoLoad
-setAutoExecuteCB = setAutoExecuteCB2
-setAutoSaveCB    = setAutoSaveCB2
-setAutoLoadCB    = setAutoLoadCB2
+setAutoExecuteCB = _setAutoExecute
+setAutoSaveCB    = _setAutoSave
+setAutoLoadCB    = _setAutoLoad
 
 local configNameBox = Instance.new("TextBox")
 configNameBox.Size = UDim2.new(1, 0, 0, 22)
@@ -1535,9 +1570,6 @@ RunService.Heartbeat:Connect(function(dt)
 	espEnabled         = getBoxESP()
 	nameEnabled        = getNameESP()
 	fillEnabled        = getFillESP()
-	if setTriggerCB then triggerbotEnabled = (function()
-		return false
-	end)() end
 	config.autoExecute = getAutoExecute()
 	config.autoSave    = getAutoSave()
 	config.autoLoad    = getAutoLoad()
@@ -1549,6 +1581,13 @@ RunService.Heartbeat:Connect(function(dt)
 		stopFly()
 	end
 
+	local wantNoclip = getNoclip()
+	if wantNoclip and not noclipEnabled then
+		startNoclip()
+	elseif not wantNoclip and noclipEnabled then
+		stopNoclip()
+	end
+
 	if espEnabled then initESP() else clearAllESP() end
 	if config.autoSave then
 		autoSaveTimer = autoSaveTimer + dt
@@ -1556,34 +1595,6 @@ RunService.Heartbeat:Connect(function(dt)
 			autoSaveTimer = 0
 			saveConfig("autosave")
 		end
-	end
-end)
-
-if currentGame == "rivals" then
-	RunService.Heartbeat:Connect(function()
-		if setTriggerCB then
-			triggerbotEnabled = (function()
-				for tname, tdata in pairs(tabs) do
-					if tname == "Combat" then
-						local holder = tdata.page:FindFirstChild("ItemHolder", true)
-						break
-					end
-				end
-				return triggerbotEnabled
-			end)()
-		end
-	end)
-end
-
-local getTriggerFinal = function() return triggerbotEnabled end
-if currentGame == "rivals" then
-	local _, getTriggerInner, _st = makeCheckbox(Instance.new("Frame"), "")
-	getTriggerFinal = getTriggerInner
-end
-
-RunService.Heartbeat:Connect(function()
-	if currentGame == "rivals" and setTriggerCB then
-		triggerbotEnabled = setTriggerCB ~= nil and triggerbotEnabled or false
 	end
 end)
 
