@@ -1,1 +1,4 @@
-[![Watch the Demo](https://streamable.com)](https://streamable.com)
+# brandon.wtf
+a free script made by me for Roblox rivals and natural disasters
+
+![brandon.wtf](https://github.com)
