@@ -1,7 +1,4 @@
 # brandon.wtf
 
-<video src="https://raw.githubusercontent.com/brandonlua/brandon.wtf/main/vid/brandon.mov" controls autoplay loop muted style="max-width: 100%; height: auto;">
-  Your browser does not support the video tag.
-</video>
-
+<iframe src="https://streamable.com/emb/210l7c" width="640" height="360" frameborder="0" allowfullscreen></iframe>
 
